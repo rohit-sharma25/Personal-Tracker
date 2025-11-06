@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Habit & Expense Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="container">
+    <h1>Daily Habit & Expense Tracker</h1>
+  </header>
+<div id="auth-section" class="center">
+  <button id="login-btn" class="secondary">Login with Google</button>
+
+  <div id="user-info" class="hidden">
+    <img id="user-photo" src="" alt="User" style="width:35px; border-radius:50%; vertical-align:middle;">
+    <span id="user-name"></span>
+    <button id="logout-btn" class="danger">Logout</button>
+  </div>
+</div>
+
+
+
+  <main class="container">
+
+    <!-- HABIT TRACKER -->
+    <section class="card">
+      <h2>Habit Tracker</h2>
+      <form id="activity-form" class="row">
+        <input type="text" id="activity-input" placeholder="Enter habit (Gym, Pray, etc.)" required>
+        <button type="submit">Add Habit</button>
+      </form>
+      <ul id="activity-list" class="list"></ul>
+    </section>
+
+    <!-- EXPENSE TRACKER -->
+    <section class="card">
+      <h2>Expense / Income Tracker</h2>
+
+      <div class="toggle-group">
+        <button type="button" id="btn-expense" class="toggle-btn active" data-type="expense">Expense</button>
+        <button type="button" id="btn-income" class="toggle-btn" data-type="income">Income</button>
+      </div>
+
+      <form id="expense-form" class="row">
+        <input type="text" id="expense-desc" placeholder="Description" required>
+        <input type="number" id="expense-amount" placeholder="Amount (₹)" step="0.01" required>
+        <button type="submit">Add</button>
+      </form>
+
+      <!-- Monthly Budget Set -->
+      <div class="budget-row row">
+        <input type="number" id="budget-input" placeholder="Monthly budget (₹)" step="0.01">
+        <button id="budget-save" type="button">Save Budget</button>
+      </div>
+      <div id="budget-warning" class="alert hidden"></div>
+
+      <div class="summary" id="expense-summary">Today: ₹0 | Month: ₹0 | Net: ₹0</div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Amount (₹)</th>
+            <th>Date</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="expense-table-body"></tbody>
+      </table>
+    </section>
+
+    <div class="center">
+      <button id="open-calendar" class="secondary">📅 Open Calendar</button>
+    </div>
+
+  </main>
+
+  <footer class="container muted">Data is stored locally on your device.</footer>
+
+  <!-- CALENDAR POPUP (initially hidden) -->
+  <div id="calendar-overlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <button id="cal-prev" class="ghost">&larr;</button>
+        <h3 id="cal-title">Month YYYY</h3>
+        <button id="cal-next" class="ghost">&rarr;</button>
+        <button id="cal-close" class="ghost close">&times;</button>
+      </div>
+
+      <div class="legend">
+        <span><span class="dot dot-habit"></span> Habit Done</span>
+        <span><span class="dot dot-spend"></span> Expense</span>
+        <span><span class="dot dot-income"></span> Income</span>
+      </div>
+
+      <div class="calendar-grid" id="calendar-grid"></div>
+
+      <div class="day-details" id="day-details">
+        <div class="muted">Tap a date to view details.</div>
+      </div>
+    </div>
+  </div>
+
+<!-- Firebase SDKs (Compat version – works with current JS code) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+  // Initialize Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyCc22Lttv8BEq4QSw_mrI_NwXJHackYD3w",
+    authDomain: "personal-tracker-1f02e.firebaseapp.com",
+    projectId: "personal-tracker-1f02e",
+    storageBucket: "personal-tracker-1f02e.firebasestorage.app",
+    messagingSenderId: "924625298797",
+    appId: "1:924625298797:web:7c9c9e684b111c32762664"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
+
+
+<script src="script.js"></script>
+</body>
+</html>
+
