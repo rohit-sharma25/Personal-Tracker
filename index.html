@@ -1,230 +1,264 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Tracker Hub</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeonSync Hub - Intelligent Life Tracking</title>
   <link rel="stylesheet" href="style.css" />
-  <style>
-    /* Minimal inline CSS to make the page usable immediately.
-       Keep your main styles in style.css and remove these if duplicated. */
-    :root{
-      --bg:#0f1115;
-      --card:#13151a;
-      --muted:#9aa0a6;
-      --accent:#7c3aed;
-      --white:#fff;
-    }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--white);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
-    .container{max-width:980px;margin:28px auto;padding:0 16px;}
-    header.container{text-align:center;margin-bottom:18px;}
-    header h1{margin:0;font-size:24px;letter-spacing:0.2px;}
-    header p{margin:6px 0 0;color:var(--muted);}
-    .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:22px;}
-    .home-card{display:block;padding:18px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));text-decoration:none;color:inherit;box-shadow:0 6px 18px rgba(0,0,0,0.6);transition:transform .12s ease, box-shadow .12s;}
-    .home-card:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(0,0,0,0.7);}
-    .home-card h2{margin:0 0 8px 0;font-size:18px;}
-    .home-card p{margin:0;color:var(--muted);font-size:14px;}
-    .topbar{display:flex;align-items:center;gap:12px;justify-content:flex-end;margin-top:12px;}
-    .btn{appearance:none;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
-    .secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white);}
-    .accent{background:var(--accent);color:var(--white);}
-    .ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03);}
-    .hidden{display:none !important;}
-    .center{text-align:center;}
-    .muted{color:var(--muted);font-size:13px;}
-    .user-info{display:flex;align-items:center;gap:8px;}
-    .user-photo{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.06);}
-    .actions{display:flex;gap:8px;align-items:center;}
-    footer.container{margin:30px auto 60px;color:var(--muted);font-size:13px;text-align:center;}
-    @media (max-width:420px){
-      header h1{font-size:20px;}
-    }
-  </style>
+  <link rel="stylesheet" href="css/animations.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
-  <header class="container">
-    <h1>Personal Tracker</h1>
-    <p class="muted">Choose what you want to manage today.</p>
+  <header class="container header-row animate-fade-in-down">
+    <div>
+      <h1 class="animate-gradient"
+        style="background: linear-gradient(to right, #6c5ce7, #a29bfe, #6c5ce7); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-size: 200% auto;">
+        NeonSync</h1>
+      <p class="muted">Intelligent Life Tracking.</p>
+    </div>
 
     <div class="topbar">
       <div id="auth-section" class="user-area">
-        <button id="login-btn" class="btn secondary">Sign in with Google</button>
-        <button id="skip-btn" class="btn ghost">Use without sign-in (Local-only)</button>
+        <div id="logged-out-view" class="row">
+          <button id="login-btn" class="btn accent hover-lift">Sign in with Google</button>
+          <button id="skip-btn" class="btn secondary hover-scale">Use Local-only</button>
+        </div>
 
-        <div id="user-info" class="user-info hidden" aria-live="polite">
-          <img id="user-photo" class="user-photo" src="" alt="User photo" />
-          <span id="user-name" class="muted"></span>
-          <div class="actions">
-            <button id="logout-btn" class="btn secondary">Logout</button>
+        <div id="user-info" class="user-info hidden">
+          <div class="row">
+            <img id="user-photo" class="user-photo" src="" alt="Profile" />
+            <span id="user-name" class="muted"></span>
+            <button id="logout-btn" class="btn ghost" style="color:var(--danger); font-size:0.8rem;">Logout</button>
           </div>
         </div>
       </div>
     </div>
   </header>
 
-  <main class="container home-grid" id="links-grid">
-    <a href="habit.html" id="link-habit" class="card home-card">
-      <h2>Habit Tracker</h2>
-      <p>Track your daily habits, streaks and weekly view.</p>
-    </a>
+  <main class="container">
+    <!-- Quick Stats Dashboard -->
+    <section id="stats-dashboard" class="stats-grid animate-fade-in-up" style="margin-bottom: 30px;">
+      <!-- Stats will be dynamically inserted here -->
+    </section>
 
-    <a href="expense.html" id="link-expense" class="card home-card">
-      <h2>Expense / Income Tracker</h2>
-      <p>Track daily spending, income and monthly budget.</p>
-    </a>
+    <!-- Feature Cards -->
+    <div class="home-grid">
+      <a href="habit.html" class="card hover-lift animate-fade-in-up stagger-1"
+        style="text-decoration:none; color:inherit;">
+        <div class="row" style="justify-content:space-between; margin-bottom: 10px;">
+          <h3 style="margin: 0; font-size: 1.3rem;">Habits</h3>
+          <span style="font-size: 2rem;" class="animate-float">🔥</span>
+        </div>
+        <p class="muted" style="margin: 10px 0;">Build routines and track daily streaks.</p>
+        <div class="row" style="justify-content: space-between; align-items: center; margin-top: 15px;">
+          <div class="badge badge-primary">Cloud Enabled</div>
+          <span id="habit-quick-stat" class="muted" style="font-size: 0.85rem;">Loading...</span>
+        </div>
+      </a>
+
+      <a href="expense.html" class="card hover-lift animate-fade-in-up stagger-2"
+        style="text-decoration:none; color:inherit;">
+        <div class="row" style="justify-content:space-between; margin-bottom: 10px;">
+          <h3 style="margin: 0; font-size: 1.3rem;">Finances</h3>
+          <span style="font-size: 2rem;" class="animate-float">💰</span>
+        </div>
+        <p class="muted" style="margin: 10px 0;">Manage spending, income and monthly budget.</p>
+        <div class="row" style="justify-content: space-between; align-items: center; margin-top: 15px;">
+          <div class="badge badge-info">Cloud Enabled</div>
+          <span id="finance-quick-stat" class="muted" style="font-size: 0.85rem;">Loading...</span>
+        </div>
+      </a>
+    </div>
   </main>
 
-  <footer class="container muted center">
-    Data is stored locally (localStorage) unless you sign in — then it syncs with your Firebase account.
-  </footer>
+  <!-- AI FAB -->
+  <div id="ai-fab" class="ai-fab">
+    <span>✨</span>
+  </div>
 
-  <!-- Firebase Compat SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <!-- AI CHAT POPUP -->
+  <div id="ai-chat-popup" class="ai-chat-popup hidden">
+    <div class="ai-chat-header">
+      <div class="row">
+        <span>✨</span>
+        <strong style="font-size:0.9rem;">Neon Assistant</strong>
+      </div>
+      <button id="ai-close" class="btn ghost" style="font-size:1.2rem; color:var(--muted);">&times;</button>
+    </div>
+    <div id="ai-chat-body" class="ai-chat-body">
+      <div class="msg-ai">Hello! I'm your Neon assistant. Ask me anything about your progress!</div>
+    </div>
+    <div class="ai-chat-footer">
+      <input type="text" id="ai-chat-input" placeholder="Type a message..." autocomplete="off">
+      <button id="ai-chat-send" class="btn accent"
+        style="border-radius:50%; width:36px; height:36px; padding:0;">&rarr;</button>
+    </div>
+  </div>
 
-  <script>
-    // ------------------------
-    // FIREBASE CONFIG — replace here if you want to use a different project
-    // ------------------------
-    const firebaseConfig = {
-      apiKey: "AIzaSyCc22Lttv8BEq4QSw_mrI_NwXJHackYD3w",
-      authDomain: "personal-tracker-1f02e.firebaseapp.com",
-      projectId: "personal-tracker-1f02e",
-      storageBucket: "personal-tracker-1f02e.firebasestorage.app",
-      messagingSenderId: "924625298797",
-      appId: "1:924625298797:web:7c9c9e684b111c32762664"
-    };
+  <script type="module">
+    import { AuthService } from './js/auth-service.js';
+    import { DBService } from './js/db-service.js';
+    import { AIService } from './js/ai-service.js';
 
-    // Initialize Firebase (compat)
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-
-    // ------------------------
-    // UI elements
-    // ------------------------
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
+    const skipBtn = document.getElementById('skip-btn');
+    const loggedOutView = document.getElementById('logged-out-view');
     const userInfo = document.getElementById('user-info');
     const userName = document.getElementById('user-name');
     const userPhoto = document.getElementById('user-photo');
-    const skipBtn = document.getElementById('skip-btn');
 
-    const linksGrid = document.getElementById('links-grid');
-    const linkHabit = document.getElementById('link-habit');
-    const linkExpense = document.getElementById('link-expense');
+    // AI Chat elements
+    const fab = document.getElementById('ai-fab');
+    const popup = document.getElementById('ai-chat-popup');
+    const closeBtn = document.getElementById('ai-close');
+    const chatInput = document.getElementById('ai-chat-input');
+    const chatSend = document.getElementById('ai-chat-send');
+    const chatBody = document.getElementById('ai-chat-body');
 
-    let currentUser = null;
-    let localOnly = false; // set true if user chose skip
+    let contextData = { habits: [], finances: [], budget: null };
 
-    // ------------------------
-    // Auth handlers
-    // ------------------------
-    auth.onAuthStateChanged(async (user) => {
+    AuthService.onUserChange(async (user) => {
       if (user) {
-        currentUser = user;
-        localOnly = false;
-        loginBtn.classList.add('hidden');
-        skipBtn.classList.add('hidden');
         userInfo.classList.remove('hidden');
-        userName.textContent = user.displayName ?? user.email;
-        userPhoto.src = user.photoURL ?? '';
-        // Optionally: fetch user-specific data here or set a flag so habit/expense pages can load cloud data
-        // Example: localStorage.setItem('userLoggedIn', JSON.stringify({uid: user.uid}));
+        loggedOutView.classList.add('hidden');
+        userName.textContent = user.displayName;
+        userPhoto.src = user.photoURL;
+        loadData(user.uid);
       } else {
-        currentUser = null;
-        userInfo.classList.add('hidden');
-        loginBtn.classList.remove('hidden');
-        skipBtn.classList.remove('hidden');
-        // If the user signed out and local-only wasn't chosen, we keep them local-only off.
-        // clear any cloud-only flags:
-        // localStorage.removeItem('userLoggedIn');
+        const isLocal = AuthService.isLocalOnly();
+        if (isLocal) {
+          userInfo.classList.remove('hidden');
+          loggedOutView.classList.add('hidden');
+          userName.textContent = "Guest Mode";
+          userPhoto.src = "https://ui-avatars.com/api/?name=Guest";
+          loadData(null);
+        } else {
+          loggedOutView.classList.remove('hidden');
+          userInfo.classList.add('hidden');
+        }
       }
     });
 
-    loginBtn.addEventListener('click', async () => {
-      try {
-        // Google provider
-        const provider = new firebase.auth.GoogleAuthProvider();
-        await auth.signInWithPopup(provider);
-        // onAuthStateChanged will handle UI update
-      } catch (err) {
-        console.error('Login error', err);
-        alert('Login failed: ' + (err.message || err));
-      }
-    });
+    async function loadData(uid) {
+      contextData.habits = await DBService.fetchData(uid, 'activities');
+      contextData.finances = await DBService.fetchData(uid, 'finances');
+      const b = await DBService.fetchData(uid, 'monthlyBudget');
+      contextData.budget = b.find(d => d.id === 'settings')?.value;
 
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        await auth.signOut();
-        currentUser = null;
-        userInfo.classList.add('hidden');
-        loginBtn.classList.remove('hidden');
-        skipBtn.classList.remove('hidden');
-        // If needed, also refresh page or reset local flags
-      } catch (err) {
-        console.error('Logout error', err);
-      }
-    });
+      const habitLogs = await DBService.fetchData(uid, 'habitLogs');
+      const logs = habitLogs.reduce((acc, doc) => {
+        acc[doc.id] = doc.habits;
+        return acc;
+      }, {});
 
-    // Skip login: use app locally only
-    skipBtn.addEventListener('click', () => {
-      if (!confirm('Continue without signing in? Your data will be stored locally only on this device.')) return;
-      localOnly = true;
-      loginBtn.classList.add('hidden');
-      skipBtn.classList.add('hidden');
-      // Show a subtle indicator in UI that user is local-only (optional)
-      // You can store a flag for other pages to know
-      localStorage.setItem('tracker_localOnly', '1');
-    });
-
-    // ------------------------
-    // Prevent accidental cloud-only navigation:
-    // If user is not signed-in AND not in localOnly mode, show a prompt asking to sign in.
-    // This prevents people from opening habit/expense and expecting cloud-sync right away.
-    // ------------------------
-    function guardNavigation(e) {
-      // Allow if already signed in or explicitly chose localOnly
-      if (currentUser || localOnly) return true;
-
-      e.preventDefault();
-      const proceed = confirm('You are not signed in. Sign in to enable cloud sync.\n\nPress OK to sign in now, or Cancel to continue local-only.');
-      if (proceed) {
-        // open login flow
-        loginBtn.click();
-      } else {
-        // set local-only and continue
-        localOnly = true;
-        localStorage.setItem('tracker_localOnly', '1');
-        loginBtn.classList.add('hidden');
-        skipBtn.classList.add('hidden');
-        // now navigate
-        window.location = e.currentTarget.href;
-      }
-      return false;
+      renderStatsDashboard(contextData.habits, contextData.finances, contextData.budget, logs);
+      updateQuickStats(contextData.habits, contextData.finances);
     }
 
-    // Attach guards to links
-    linkHabit.addEventListener('click', guardNavigation);
-    linkExpense.addEventListener('click', guardNavigation);
+    function renderStatsDashboard(habits, finances, budget, habitLogs) {
+      const dashboard = document.getElementById('stats-dashboard');
 
-    // If user previously chose local-only, respect that on load
-    (function checkLocalOnlyFlag(){
-      if (localStorage.getItem('tracker_localOnly') === '1') {
-        localOnly = true;
-        loginBtn.classList.add('hidden');
-        skipBtn.classList.add('hidden');
-      }
-    })();
+      // Calculate stats
+      const totalHabits = habits.length;
+      const longestStreak = habits.reduce((max, h) => Math.max(max, h.streak || 0), 0);
 
-    // Accessibility: keyboard shortcut 'L' to open login (convenience)
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key.toLowerCase() === 'l' && !currentUser && !localOnly) {
-        loginBtn.click();
+      const today = new Date();
+      const currentMonth = today.toISOString().slice(0, 7);
+      const monthExpenses = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth))
+        .reduce((sum, f) => sum + f.amount, 0);
+
+      const budgetPercent = budget ? Math.round((monthExpenses / budget) * 100) : 0;
+
+      // Calculate weekly completion
+      const weekDates = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        weekDates.push(d.toISOString().slice(0, 10));
       }
-    });
+      let totalCompleted = 0;
+      weekDates.forEach(date => {
+        const dayLogs = habitLogs[date] || [];
+        totalCompleted += dayLogs.length;
+      });
+      const weeklyCompletion = totalHabits > 0 ? Math.round((totalCompleted / (totalHabits * 7)) * 100) : 0;
+
+      dashboard.innerHTML = `
+        <div class="stat-card hover-lift">
+          <span class="stat-card-icon">🎯</span>
+          <div class="stat-card-value" id="stat-habits">${totalHabits}</div>
+          <div class="stat-card-label">Active Habits</div>
+        </div>
+        
+        <div class="stat-card hover-lift">
+          <span class="stat-card-icon">🔥</span>
+          <div class="stat-card-value" id="stat-streak">${longestStreak}</div>
+          <div class="stat-card-label">Longest Streak</div>
+        </div>
+        
+        <div class="stat-card hover-lift">
+          <span class="stat-card-icon">📊</span>
+          <div class="stat-card-value" id="stat-completion">${weeklyCompletion}%</div>
+          <div class="stat-card-label">Weekly Completion</div>
+        </div>
+        
+        <div class="stat-card hover-lift">
+          <span class="stat-card-icon">💰</span>
+          <div class="stat-card-value" style="color: ${budgetPercent > 90 ? 'var(--danger)' : budgetPercent > 70 ? 'var(--warning)' : 'var(--success)'}">₹${monthExpenses.toFixed(0)}</div>
+          <div class="stat-card-label">Monthly Spending</div>
+          ${budget ? `<div class="stat-card-trend ${budgetPercent > 90 ? 'down' : 'up'}">${budgetPercent}% of budget</div>` : ''}
+        </div>
+      `;
+    }
+
+    function updateQuickStats(habits, finances) {
+      const habitStat = document.getElementById('habit-quick-stat');
+      const financeStat = document.getElementById('finance-quick-stat');
+
+      const activeHabits = habits.filter(h => (h.streak || 0) > 0).length;
+      habitStat.textContent = `${activeHabits} active`;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const todaySpent = finances.filter(f => f.type === 'expense' && f.dateISO === today)
+        .reduce((sum, f) => sum + f.amount, 0);
+      financeStat.textContent = `₹${todaySpent.toFixed(0)} today`;
+    }
+
+    fab.onclick = () => popup.classList.toggle('hidden');
+    closeBtn.onclick = () => popup.classList.add('hidden');
+
+    async function handleChat() {
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+
+      const userMsg = document.createElement('div');
+      userMsg.className = 'msg-user';
+      userMsg.textContent = msg;
+      chatBody.appendChild(userMsg);
+      chatInput.value = "";
+      chatBody.scrollTop = chatBody.scrollHeight;
+
+      const aiMsg = document.createElement('div');
+      aiMsg.className = 'msg-ai';
+      aiMsg.textContent = "...";
+      chatBody.appendChild(aiMsg);
+
+      const response = await AIService.chat(msg, contextData);
+      aiMsg.innerHTML = response;
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    chatSend.onclick = handleChat;
+    chatInput.onkeydown = (e) => e.key === 'Enter' && handleChat();
+
+    loginBtn.addEventListener('click', () => AuthService.login());
+    skipBtn.addEventListener('click', () => { AuthService.setLocalOnly(true); location.reload(); });
+    logoutBtn.addEventListener('click', () => { AuthService.setLocalOnly(false); AuthService.logout(); location.reload(); });
   </script>
 </body>
+
 </html>

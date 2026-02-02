@@ -1,38 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Habit Tracker</title>
-  <link rel="stylesheet" href="habit.css" />
+  <title>Habit Station - Build Better Routines</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
-  <header class="container header-row">
+  <header class="container header-row animate-fade-in-down">
     <div>
-      <h1>Habit Tracker</h1>
-      <p class="muted">Daily streak + current week view.</p>
+      <h1 style="color:var(--accent); font-size: 2rem;">Habit Station</h1>
+      <p class="muted">Build. Track. Evolve.</p>
     </div>
+
+    <div class="topbar">
+      <div id="user-info" class="user-info">
+        <img id="user-photo" class="user-photo" src="" alt="User" />
+        <span id="user-name" class="muted"></span>
+      </div>
+    </div>
+
     <nav class="nav-links">
-      <a href="index.html">Home</a>
-      <a href="expense.html">Expense Tracker</a>
+      <a href="index.html">🏠 Hub</a>
+      <a href="expense.html">💰 Finances</a>
     </nav>
   </header>
 
   <main class="container">
-    <section class="card">
-      <h2>Habits</h2>
-      <form id="activity-form" class="row">
-        <input type="text" id="activity-input" placeholder="Enter habit (Gym, Pray, etc.)" required />
-        <button type="submit">Add Habit</button>
+    <!-- Habit Analytics Section -->
+    <section id="habit-analytics" class="card animate-fade-in-up" style="margin-bottom: 20px;">
+      <h2 style="margin: 0 0 15px 0; font-size: 1.2rem;">📊 Your Progress</h2>
+      <div id="analytics-content" class="stats-grid">
+        <!-- Analytics will be inserted here -->
+      </div>
+    </section>
+
+    <!-- Add Habit Section -->
+    <section class="card animate-fade-in-up stagger-1">
+      <h2 style="margin: 0 0 15px 0; font-size: 1.2rem;">Your Habits</h2>
+      <form id="activity-form" class="row" style="gap: 12px;">
+        <input type="text" id="activity-input" placeholder="New habit (e.g. 30m Deep Work)" required autocomplete="off"
+          style="flex: 1;" />
+        <button type="submit" class="btn accent hover-lift">Add Habit</button>
       </form>
-      <ul id="activity-list" class="list"></ul>
+      <ul id="activity-list" class="list" style="margin-top: 20px;"></ul>
     </section>
   </main>
 
-  <footer class="container muted center">
-    Habits saved in localStorage on this device.
-  </footer>
+  <!-- AI FAB -->
+  <div id="ai-fab" class="ai-fab">
+    <span>⚡</span>
+  </div>
 
-  <script src="habit.js"></script>
+  <!-- AI CHAT POPUP -->
+  <div id="ai-chat-popup" class="ai-chat-popup hidden">
+    <div class="ai-chat-header">
+      <div class="row">
+        <span>⚡</span>
+        <strong style="font-size:0.9rem;">Coach AI</strong>
+      </div>
+      <button id="ai-close" class="btn ghost" style="font-size:1.2rem; color:var(--muted);">&times;</button>
+    </div>
+    <div id="ai-chat-body" class="ai-chat-body">
+      <div class="msg-ai">Hello! I'm your habit coach. How are your streaks coming along?</div>
+    </div>
+    <div class="ai-chat-footer">
+      <input type="text" id="ai-chat-input" placeholder="Ask coach..." autocomplete="off">
+      <button id="ai-chat-send" class="btn accent"
+        style="border-radius:50%; width:36px; height:36px; padding:0;">&rarr;</button>
+    </div>
+  </div>
+
+  <script type="module" src="habit.js"></script>
 </body>
+
 </html>
