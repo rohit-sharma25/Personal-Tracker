@@ -4,74 +4,213 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NeonSync Hub - Intelligent Life Tracking</title>
+  <title>EXPENSIFY - Smart Expense Tracking</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="css/animations.css" />
-  <link rel="stylesheet" href="css/components.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
-  <header class="container header-row animate-fade-in-down">
-    <div>
-      <h1 class="animate-gradient"
-        style="background: linear-gradient(to right, #6c5ce7, #a29bfe, #6c5ce7); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-size: 200% auto;">
-        NeonSync</h1>
-      <p class="muted">Intelligent Life Tracking.</p>
-    </div>
-
-    <div class="topbar">
-      <div id="auth-section" class="user-area">
-        <div id="logged-out-view" class="row">
-          <button id="login-btn" class="btn accent hover-lift">Sign in with Google</button>
-          <button id="skip-btn" class="btn secondary hover-scale">Use Local-only</button>
+  <!-- Header -->
+  <header class="header">
+    <div class="container">
+      <div class="header-content animate-fade-in-down">
+        <div class="brand">
+          <div class="brand-logo">💰</div>
+          <div class="brand-text">
+            <h1>EXPENSIFY</h1>
+            <p>Track all of expenses and transactions</p>
+          </div>
         </div>
 
-        <div id="user-info" class="user-info hidden">
-          <div class="row">
+        <div class="user-section" id="auth-section">
+          <div id="logged-out-view" class="row">
+            <button id="login-btn" class="btn btn-primary">Sign in with Google</button>
+            <button id="skip-btn" class="btn btn-secondary">Use Offline</button>
+          </div>
+
+          <div id="user-info" class="user-section hidden">
+            <div class="user-info">
+              <span id="user-name" class="user-name"></span>
+              <span id="user-email" class="user-email"></span>
+            </div>
             <img id="user-photo" class="user-photo" src="" alt="Profile" />
-            <span id="user-name" class="muted"></span>
-            <button id="logout-btn" class="btn ghost" style="color:var(--danger); font-size:0.8rem;">Logout</button>
+            <button id="logout-btn" class="btn btn-ghost">Logout</button>
           </div>
         </div>
       </div>
     </div>
   </header>
 
+  <!-- Main Content -->
   <main class="container">
-    <!-- Quick Stats Dashboard -->
-    <section id="stats-dashboard" class="stats-grid animate-fade-in-up" style="margin-bottom: 30px;">
-      <!-- Stats will be dynamically inserted here -->
+    <!-- Greeting Section -->
+    <section class="greeting-section animate-fade-in-up">
+      <div class="greeting-content">
+        <div class="greeting-header">
+          <div class="greeting-text">
+            <h2>Hi, <span id="greeting-name">Ananya</span> 👋</h2>
+            <p>Track all of expenses and transactions</p>
+          </div>
+          <div class="greeting-time" id="current-time">
+            <span>🕐</span>
+            <span id="time-display"></span>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- Feature Cards -->
-    <div class="home-grid">
-      <a href="habit.html" class="card hover-lift animate-fade-in-up stagger-1"
-        style="text-decoration:none; color:inherit;">
-        <div class="row" style="justify-content:space-between; margin-bottom: 10px;">
-          <h3 style="margin: 0; font-size: 1.3rem;">Habits</h3>
-          <span style="font-size: 2rem;" class="animate-float">🔥</span>
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid animate-fade-in-up stagger-1">
+      <!-- Account Balance Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">💳</div>
+          <span class="stat-card-badge" style="background: rgba(91, 108, 242, 0.15); color: #5B6CF2;">BALANCE</span>
         </div>
-        <p class="muted" style="margin: 10px 0;">Build routines and track daily streaks.</p>
-        <div class="row" style="justify-content: space-between; align-items: center; margin-top: 15px;">
-          <div class="badge badge-primary">Cloud Enabled</div>
-          <span id="habit-quick-stat" class="muted" style="font-size: 0.85rem;">Loading...</span>
+        <div class="stat-card-body">
+          <h3>Account Balance</h3>
+          <div class="stat-card-value" id="account-balance">₹0.00</div>
+          <div class="stat-card-trend trend-up" id="balance-trend">
+            <span>↑</span>
+            <span>+12% from last month</span>
+          </div>
         </div>
-      </a>
+      </div>
 
-      <a href="expense.html" class="card hover-lift animate-fade-in-up stagger-2"
-        style="text-decoration:none; color:inherit;">
-        <div class="row" style="justify-content:space-between; margin-bottom: 10px;">
-          <h3 style="margin: 0; font-size: 1.3rem;">Finances</h3>
-          <span style="font-size: 2rem;" class="animate-float">💰</span>
+      <!-- Monthly Expenses Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">📊</div>
+          <span class="stat-card-badge" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">EXPENSES</span>
         </div>
-        <p class="muted" style="margin: 10px 0;">Manage spending, income and monthly budget.</p>
-        <div class="row" style="justify-content: space-between; align-items: center; margin-top: 15px;">
-          <div class="badge badge-info">Cloud Enabled</div>
-          <span id="finance-quick-stat" class="muted" style="font-size: 0.85rem;">Loading...</span>
+        <div class="stat-card-body">
+          <h3>Monthly Expenses</h3>
+          <div class="stat-card-value"
+            style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+            id="monthly-expenses">₹0.00</div>
+          <div class="stat-card-trend" id="expense-trend">
+            <span>📉</span>
+            <span>5% less than last month</span>
+          </div>
         </div>
-      </a>
+      </div>
+
+      <!-- Total Investment Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">📈</div>
+          <span class="stat-card-badge" style="background: rgba(124, 58, 237, 0.15); color: #7C3AED;">INVESTMENT</span>
+        </div>
+        <div class="stat-card-body">
+          <h3>Total Investment</h3>
+          <div class="stat-card-value"
+            style="background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+            id="total-investment">₹0.00</div>
+          <div class="stat-card-trend trend-up" id="investment-trend">
+            <span>↑</span>
+            <span>+8% growth</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Goal Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">🎯</div>
+          <span class="stat-card-badge" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">GOAL</span>
+        </div>
+        <div class="stat-card-body">
+          <h3>Apple iPhone 17 Pro</h3>
+          <div class="stat-card-value"
+            style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+            id="goal-amount">₹1,45,555.00</div>
+          <div class="stat-card-trend" id="goal-progress">
+            <div
+              style="width: 100%; background: rgba(255,255,255,0.1); height: 6px; border-radius: 99px; margin-top: 8px; overflow: hidden;">
+              <div
+                style="width: 65%; height: 100%; background: linear-gradient(90deg, #10B981 0%, #059669 100%); border-radius: 99px;">
+              </div>
+            </div>
+            <span style="margin-top: 4px; font-size: 0.8rem;">65% Complete</span>
+          </div>
+        </div>
+      </div>
     </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section animate-fade-in-up stagger-2">
+      <!-- Monthly Expenses Chart -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">📊 Monthly Expenses</h3>
+          <div class="chart-filter">
+            <button class="filter-btn active" data-period="6m">6 Month</button>
+            <button class="filter-btn" data-period="1y">1 Year</button>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="monthly-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Top Category Chart -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">🎯 Top Category</h3>
+          <div class="chart-filter">
+            <button class="filter-btn active" data-view="recent">Recent</button>
+          </div>
+        </div>
+        <div class="chart-container" style="height: 250px;">
+          <canvas id="category-chart"></canvas>
+        </div>
+        <div class="category-list" id="category-list">
+          <!-- Categories will be dynamically inserted -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Expenses Section -->
+    <section class="expenses-section animate-fade-in-up stagger-3">
+      <div class="section-header">
+        <h3 class="section-title">📋 Recent Expenses</h3>
+        <div class="row">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="recent">Recent</button>
+          <a href="expense.html" class="btn btn-primary">+ Add Expense</a>
+        </div>
+      </div>
+
+      <table class="expenses-table">
+        <thead>
+          <tr>
+            <th>S.N</th>
+            <th>Amount</th>
+            <th>Category</th>
+            <th>Sub Category</th>
+            <th>Date</th>
+            <th>Mode</th>
+          </tr>
+        </thead>
+        <tbody id="expenses-table-body">
+          <!-- Expenses will be dynamically inserted -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Bill & Subscription Section -->
+    <section class="expenses-section animate-fade-in-up stagger-4">
+      <div class="section-header">
+        <h3 class="section-title">💳 Bill & Subscription</h3>
+        <button class="btn btn-secondary">View All</button>
+      </div>
+
+      <div class="dashboard-grid" id="subscriptions-grid">
+        <!-- Subscriptions will be dynamically inserted -->
+      </div>
+    </section>
   </main>
 
   <!-- AI FAB -->
@@ -82,19 +221,19 @@
   <!-- AI CHAT POPUP -->
   <div id="ai-chat-popup" class="ai-chat-popup hidden">
     <div class="ai-chat-header">
-      <div class="row">
+      <div class="ai-chat-title">
         <span>✨</span>
-        <strong style="font-size:0.9rem;">Neon Assistant</strong>
+        <strong>AI Financial Advisor</strong>
       </div>
-      <button id="ai-close" class="btn ghost" style="font-size:1.2rem; color:var(--muted);">&times;</button>
+      <button id="ai-close" class="btn btn-ghost" style="font-size:1.2rem;">&times;</button>
     </div>
     <div id="ai-chat-body" class="ai-chat-body">
-      <div class="msg-ai">Hello! I'm your Neon assistant. Ask me anything about your progress!</div>
+      <div class="msg-ai">Hello! I'm your AI financial advisor. Ask me anything about your expenses, budget, or savings!
+      </div>
     </div>
     <div class="ai-chat-footer">
-      <input type="text" id="ai-chat-input" placeholder="Type a message..." autocomplete="off">
-      <button id="ai-chat-send" class="btn accent"
-        style="border-radius:50%; width:36px; height:36px; padding:0;">&rarr;</button>
+      <input type="text" id="ai-chat-input" placeholder="Ask about your expenses..." autocomplete="off">
+      <button id="ai-chat-send" class="ai-chat-send">&rarr;</button>
     </div>
   </div>
 
@@ -103,13 +242,16 @@
     import { DBService } from './js/db-service.js';
     import { AIService } from './js/ai-service.js';
 
+    // DOM Elements
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const skipBtn = document.getElementById('skip-btn');
     const loggedOutView = document.getElementById('logged-out-view');
     const userInfo = document.getElementById('user-info');
     const userName = document.getElementById('user-name');
+    const userEmail = document.getElementById('user-email');
     const userPhoto = document.getElementById('user-photo');
+    const greetingName = document.getElementById('greeting-name');
 
     // AI Chat elements
     const fab = document.getElementById('ai-fab');
@@ -119,22 +261,47 @@
     const chatSend = document.getElementById('ai-chat-send');
     const chatBody = document.getElementById('ai-chat-body');
 
-    let contextData = { habits: [], finances: [], budget: null };
+    let contextData = { finances: [], budget: null };
+    let monthlyChart = null;
+    let categoryChart = null;
 
+    // Update time
+    function updateTime() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      const dateStr = now.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+      document.getElementById('time-display').textContent = `${timeStr} | ${dateStr}`;
+    }
+    updateTime();
+    setInterval(updateTime, 60000);
+
+    // Auth handling
     AuthService.onUserChange(async (user) => {
       if (user) {
         userInfo.classList.remove('hidden');
         loggedOutView.classList.add('hidden');
         userName.textContent = user.displayName;
+        userEmail.textContent = user.email;
         userPhoto.src = user.photoURL;
+        greetingName.textContent = user.displayName.split(' ')[0];
         loadData(user.uid);
       } else {
         const isLocal = AuthService.isLocalOnly();
         if (isLocal) {
           userInfo.classList.remove('hidden');
           loggedOutView.classList.add('hidden');
-          userName.textContent = "Guest Mode";
-          userPhoto.src = "https://ui-avatars.com/api/?name=Guest";
+          userName.textContent = "Guest User";
+          userEmail.textContent = "Local Mode";
+          userPhoto.src = "https://ui-avatars.com/api/?name=Guest&background=5B6CF2&color=fff";
+          greetingName.textContent = "Guest";
           loadData(null);
         } else {
           loggedOutView.classList.remove('hidden');
@@ -144,90 +311,251 @@
     });
 
     async function loadData(uid) {
-      contextData.habits = await DBService.fetchData(uid, 'activities');
       contextData.finances = await DBService.fetchData(uid, 'finances');
       const b = await DBService.fetchData(uid, 'monthlyBudget');
       contextData.budget = b.find(d => d.id === 'settings')?.value;
 
-      const habitLogs = await DBService.fetchData(uid, 'habitLogs');
-      const logs = habitLogs.reduce((acc, doc) => {
-        acc[doc.id] = doc.habits;
-        return acc;
-      }, {});
-
-      renderStatsDashboard(contextData.habits, contextData.finances, contextData.budget, logs);
-      updateQuickStats(contextData.habits, contextData.finances);
+      renderDashboard(contextData.finances, contextData.budget);
+      renderCharts(contextData.finances);
+      renderRecentExpenses(contextData.finances);
+      renderSubscriptions(contextData.finances);
     }
 
-    function renderStatsDashboard(habits, finances, budget, habitLogs) {
-      const dashboard = document.getElementById('stats-dashboard');
-
-      // Calculate stats
-      const totalHabits = habits.length;
-      const longestStreak = habits.reduce((max, h) => Math.max(max, h.streak || 0), 0);
-
+    function renderDashboard(finances, budget) {
       const today = new Date();
       const currentMonth = today.toISOString().slice(0, 7);
-      const monthExpenses = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth))
+
+      // Calculate monthly expenses
+      const monthExpenses = finances
+        .filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth))
         .reduce((sum, f) => sum + f.amount, 0);
 
-      const budgetPercent = budget ? Math.round((monthExpenses / budget) * 100) : 0;
+      // Calculate monthly income
+      const monthIncome = finances
+        .filter(f => f.type === 'income' && f.dateISO.startsWith(currentMonth))
+        .reduce((sum, f) => sum + f.amount, 0);
 
-      // Calculate weekly completion
-      const weekDates = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        weekDates.push(d.toISOString().slice(0, 10));
+      // Calculate total investment
+      const totalInvestment = finances
+        .filter(f => f.category === 'Investment')
+        .reduce((sum, f) => sum + f.amount, 0);
+
+      // Update dashboard
+      document.getElementById('account-balance').textContent = `₹${(monthIncome - monthExpenses).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      document.getElementById('monthly-expenses').textContent = `₹${monthExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      document.getElementById('total-investment').textContent = `₹${totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function renderCharts(finances) {
+      renderMonthlyChart(finances);
+      renderCategoryChart(finances);
+    }
+
+    function renderMonthlyChart(finances) {
+      const ctx = document.getElementById('monthly-chart');
+      if (!ctx) return;
+
+      // Get last 6 months data
+      const months = [];
+      const data = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const monthStr = d.toISOString().slice(0, 7);
+        const monthName = d.toLocaleDateString('en-IN', { month: 'short' });
+        months.push(monthName);
+
+        const monthTotal = finances
+          .filter(f => f.type === 'expense' && f.dateISO.startsWith(monthStr))
+          .reduce((sum, f) => sum + f.amount, 0);
+        data.push(monthTotal);
       }
-      let totalCompleted = 0;
-      weekDates.forEach(date => {
-        const dayLogs = habitLogs[date] || [];
-        totalCompleted += dayLogs.length;
+
+      if (monthlyChart) monthlyChart.destroy();
+
+      monthlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [{
+            label: 'Expenses',
+            data: data,
+            backgroundColor: 'rgba(91, 108, 242, 0.8)',
+            borderColor: '#5B6CF2',
+            borderWidth: 2,
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(17, 18, 26, 0.95)',
+              padding: 12,
+              titleColor: '#F9FAFB',
+              bodyColor: '#E5E7EB',
+              borderColor: 'rgba(91, 108, 242, 0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (context) => `₹${context.parsed.y.toLocaleString('en-IN')}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#9CA3AF' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#9CA3AF' }
+            }
+          }
+        }
       });
-      const weeklyCompletion = totalHabits > 0 ? Math.round((totalCompleted / (totalHabits * 7)) * 100) : 0;
-
-      dashboard.innerHTML = `
-        <div class="stat-card hover-lift">
-          <span class="stat-card-icon">🎯</span>
-          <div class="stat-card-value" id="stat-habits">${totalHabits}</div>
-          <div class="stat-card-label">Active Habits</div>
-        </div>
-        
-        <div class="stat-card hover-lift">
-          <span class="stat-card-icon">🔥</span>
-          <div class="stat-card-value" id="stat-streak">${longestStreak}</div>
-          <div class="stat-card-label">Longest Streak</div>
-        </div>
-        
-        <div class="stat-card hover-lift">
-          <span class="stat-card-icon">📊</span>
-          <div class="stat-card-value" id="stat-completion">${weeklyCompletion}%</div>
-          <div class="stat-card-label">Weekly Completion</div>
-        </div>
-        
-        <div class="stat-card hover-lift">
-          <span class="stat-card-icon">💰</span>
-          <div class="stat-card-value" style="color: ${budgetPercent > 90 ? 'var(--danger)' : budgetPercent > 70 ? 'var(--warning)' : 'var(--success)'}">₹${monthExpenses.toFixed(0)}</div>
-          <div class="stat-card-label">Monthly Spending</div>
-          ${budget ? `<div class="stat-card-trend ${budgetPercent > 90 ? 'down' : 'up'}">${budgetPercent}% of budget</div>` : ''}
-        </div>
-      `;
     }
 
-    function updateQuickStats(habits, finances) {
-      const habitStat = document.getElementById('habit-quick-stat');
-      const financeStat = document.getElementById('finance-quick-stat');
+    function renderCategoryChart(finances) {
+      const ctx = document.getElementById('category-chart');
+      if (!ctx) return;
 
-      const activeHabits = habits.filter(h => (h.streak || 0) > 0).length;
-      habitStat.textContent = `${activeHabits} active`;
+      // Calculate category totals
+      const categories = {};
+      const categoryColors = {
+        'Food & Grocery': '#10B981',
+        'Investment': '#8B5CF6',
+        'Shopping': '#F59E0B',
+        'Traveling': '#06B6D4',
+        'Miscellaneous': '#6B7280',
+        'Bill & Subscription': '#EF4444'
+      };
 
-      const today = new Date().toISOString().slice(0, 10);
-      const todaySpent = finances.filter(f => f.type === 'expense' && f.dateISO === today)
-        .reduce((sum, f) => sum + f.amount, 0);
-      financeStat.textContent = `₹${todaySpent.toFixed(0)} today`;
+      finances
+        .filter(f => f.type === 'expense')
+        .forEach(f => {
+          const cat = f.category || 'Miscellaneous';
+          categories[cat] = (categories[cat] || 0) + f.amount;
+        });
+
+      const labels = Object.keys(categories);
+      const data = Object.values(categories);
+      const colors = labels.map(l => categoryColors[l] || '#6B7280');
+
+      if (categoryChart) categoryChart.destroy();
+
+      categoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors,
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(17, 18, 26, 0.95)',
+              padding: 12,
+              titleColor: '#F9FAFB',
+              bodyColor: '#E5E7EB',
+              borderColor: 'rgba(91, 108, 242, 0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: (context) => `${context.label}: ₹${context.parsed.toLocaleString('en-IN')}`
+              }
+            }
+          },
+          cutout: '70%'
+        }
+      });
+
+      // Render category list
+      const categoryList = document.getElementById('category-list');
+      categoryList.innerHTML = labels.map((label, i) => `
+        <div class="category-item">
+          <div class="category-color" style="background: ${colors[i]}"></div>
+          <div class="category-info">
+            <span class="category-name">${label}</span>
+            <span class="category-amount">₹${data[i].toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+      `).join('');
     }
 
+    function renderRecentExpenses(finances) {
+      const tbody = document.getElementById('expenses-table-body');
+      const recent = finances
+        .filter(f => f.type === 'expense')
+        .sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO))
+        .slice(0, 5);
+
+      const categoryColors = {
+        'Food & Grocery': '#10B981',
+        'Investment': '#8B5CF6',
+        'Shopping': '#F59E0B',
+        'Traveling': '#06B6D4',
+        'Miscellaneous': '#6B7280',
+        'Bill & Subscription': '#EF4444'
+      };
+
+      tbody.innerHTML = recent.map((exp, i) => {
+        const color = categoryColors[exp.category] || '#6B7280';
+        return `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="expense-amount">₹${exp.amount.toLocaleString('en-IN')}</td>
+            <td>
+              <span class="expense-category-badge" style="background: ${color}20; color: ${color}">
+                ${exp.category || 'Other'}
+              </span>
+            </td>
+            <td class="expense-mode">${exp.subCategory || '-'}</td>
+            <td class="expense-date">${new Date(exp.dateISO).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+            <td class="expense-mode">${exp.mode || 'UPI'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderSubscriptions(finances) {
+      const grid = document.getElementById('subscriptions-grid');
+      const subscriptions = finances
+        .filter(f => f.category === 'Bill & Subscription')
+        .slice(0, 4);
+
+      const icons = {
+        'Netflix': '🎬',
+        'Spotify': '🎵',
+        'WiFi': '📡',
+        'Electricity': '⚡'
+      };
+
+      grid.innerHTML = subscriptions.map(sub => `
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <div class="stat-card-icon">${icons[sub.subCategory] || '💳'}</div>
+            <span class="stat-card-badge" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">ACTIVE</span>
+          </div>
+          <div class="stat-card-body">
+            <h3>${sub.subCategory || sub.description}</h3>
+            <div class="stat-card-value" style="font-size: 1.5rem;">₹${sub.amount.toLocaleString('en-IN')}</div>
+            <div class="stat-card-trend">
+              <span style="font-size: 0.8rem; color: var(--muted);">${new Date(sub.dateISO).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // AI Chat
     fab.onclick = () => popup.classList.toggle('hidden');
     closeBtn.onclick = () => popup.classList.add('hidden');
 
