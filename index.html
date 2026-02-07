@@ -88,7 +88,7 @@
         <div class="stat-card-body">
           <h3>Monthly Expenses</h3>
           <div class="stat-card-value"
-            style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+            style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;"
             id="monthly-expenses">₹0.00</div>
           <div class="stat-card-trend" id="expense-trend">
             <span>📉</span>
@@ -106,7 +106,7 @@
         <div class="stat-card-body">
           <h3>Total Investment</h3>
           <div class="stat-card-value"
-            style="background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+            style="background: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;"
             id="total-investment">₹0.00</div>
           <div class="stat-card-trend trend-up" id="investment-trend">
             <span>↑</span>
@@ -115,25 +115,65 @@
         </div>
       </div>
 
-      <!-- Goal Card -->
+      <!-- Goal Card with Edit Functionality -->
       <div class="stat-card">
         <div class="stat-card-header">
           <div class="stat-card-icon">🎯</div>
           <span class="stat-card-badge" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">GOAL</span>
         </div>
         <div class="stat-card-body">
-          <h3>Apple iPhone 17 Pro</h3>
-          <div class="stat-card-value"
-            style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
-            id="goal-amount">₹1,45,555.00</div>
-          <div class="stat-card-trend" id="goal-progress">
-            <div
-              style="width: 100%; background: rgba(255,255,255,0.1); height: 6px; border-radius: 99px; margin-top: 8px; overflow: hidden;">
+          <!-- Goal Display -->
+          <div id="goal-display">
+            <h3 id="goal-name-display">No Goal Set</h3>
+            <div class="stat-card-value"
+              style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;"
+              id="goal-amount-display">₹0.00</div>
+            <div class="stat-card-trend" id="goal-progress-display">
               <div
-                style="width: 65%; height: 100%; background: linear-gradient(90deg, #10B981 0%, #059669 100%); border-radius: 99px;">
+                style="width: 100%; background: rgba(0,0,0,0.1); height: 6px; border-radius: 99px; margin-top: 8px; overflow: hidden;">
+                <div id="goal-progress-bar"
+                  style="width: 0%; height: 100%; background: linear-gradient(90deg, #10B981 0%, #059669 100%); border-radius: 99px;">
+                </div>
               </div>
+              <span id="goal-progress-text" style="margin-top: 4px; font-size: 0.8rem;">0% Complete</span>
             </div>
-            <span style="margin-top: 4px; font-size: 0.8rem;">65% Complete</span>
+            <button id="edit-goal-btn" class="btn btn-secondary"
+              style="margin-top: 12px; width: 100%; font-size: 0.85rem;">
+              ✏️ Edit Goal
+            </button>
+          </div>
+
+          <!-- Goal Edit Form (Hidden by default) -->
+          <div id="goal-edit-form" class="hidden">
+            <div style="margin-bottom: 12px;">
+              <label
+                style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-weight: 600;">GOAL
+                NAME</label>
+              <input type="text" id="goal-name-input" placeholder="e.g., iPhone 17 Pro"
+                style="width: 100%; padding: 8px 12px; font-size: 0.9rem;" />
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label
+                style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-weight: 600;">TARGET
+                AMOUNT (₹)</label>
+              <input type="number" id="goal-amount-input" placeholder="0.00" step="0.01"
+                style="width: 100%; padding: 8px 12px; font-size: 0.9rem;" />
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label
+                style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-weight: 600;">CURRENT
+                SAVINGS (₹)</label>
+              <input type="number" id="goal-saved-input" placeholder="0.00" step="0.01"
+                style="width: 100%; padding: 8px 12px; font-size: 0.9rem;" />
+            </div>
+            <div class="row" style="gap: 8px;">
+              <button id="save-goal-btn" class="btn btn-primary" style="flex: 1; font-size: 0.85rem;">
+                💾 Save Goal
+              </button>
+              <button id="cancel-goal-btn" class="btn btn-ghost" style="font-size: 0.85rem;">
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -264,6 +304,7 @@
     let contextData = { finances: [], budget: null };
     let monthlyChart = null;
     let categoryChart = null;
+    let currentUser = null;
 
     // Update time
     function updateTime() {
@@ -285,6 +326,7 @@
 
     // Auth handling
     AuthService.onUserChange(async (user) => {
+      currentUser = user;
       if (user) {
         userInfo.classList.remove('hidden');
         loggedOutView.classList.add('hidden');
@@ -311,15 +353,93 @@
     });
 
     async function loadData(uid) {
-      contextData.finances = await DBService.fetchData(uid, 'finances');
-      const b = await DBService.fetchData(uid, 'monthlyBudget');
-      contextData.budget = b.find(d => d.id === 'settings')?.value;
+      // Set up real-time subscriptions for automatic updates
+      DBService.subscribe(uid, 'finances', (data) => {
+        contextData.finances = data;
+        renderDashboard(contextData.finances, contextData.budget);
+        renderCharts(contextData.finances);
+        renderRecentExpenses(contextData.finances);
+        renderSubscriptions(contextData.finances);
+      });
 
-      renderDashboard(contextData.finances, contextData.budget);
-      renderCharts(contextData.finances);
-      renderRecentExpenses(contextData.finances);
-      renderSubscriptions(contextData.finances);
+      DBService.subscribe(uid, 'monthlyBudget', (data) => {
+        const settings = data.find(d => d.id === 'settings');
+        contextData.budget = settings ? settings.value : null;
+        renderDashboard(contextData.finances, contextData.budget);
+      });
+
+      DBService.subscribe(uid, 'goals', (data) => {
+        const savedGoal = data.find(g => g.id === 'userGoal');
+        if (savedGoal) {
+          updateGoalDisplay(savedGoal);
+        }
+      });
     }
+
+    // Goal Management Functions
+    function updateGoalDisplay(goal) {
+      if (!goal || !goal.name || !goal.targetAmount) {
+        document.getElementById('goal-name-display').textContent = 'No Goal Set';
+        document.getElementById('goal-amount-display').textContent = '₹0.00';
+        document.getElementById('goal-progress-bar').style.width = '0%';
+        document.getElementById('goal-progress-text').textContent = '0% Complete';
+        return;
+      }
+
+      const savedAmount = goal.savedAmount || 0;
+      const targetAmount = goal.targetAmount || 0;
+      const progress = targetAmount > 0 ? Math.min((savedAmount / targetAmount) * 100, 100) : 0;
+
+      document.getElementById('goal-name-display').textContent = goal.name;
+      document.getElementById('goal-amount-display').textContent = `₹${targetAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      document.getElementById('goal-progress-bar').style.width = `${progress}%`;
+      document.getElementById('goal-progress-text').textContent = `${progress.toFixed(0)}% Complete (₹${savedAmount.toLocaleString('en-IN')} saved)`;
+    }
+
+    // Goal Edit/Save Handlers
+    document.getElementById('edit-goal-btn').addEventListener('click', async () => {
+      const goalData = await DBService.fetchData(AuthService.isLocalOnly() ? null : currentUser?.uid, 'goals');
+      const savedGoal = goalData.find(g => g.id === 'userGoal');
+
+      if (savedGoal) {
+        document.getElementById('goal-name-input').value = savedGoal.name || '';
+        document.getElementById('goal-amount-input').value = savedGoal.targetAmount || '';
+        document.getElementById('goal-saved-input').value = savedGoal.savedAmount || '';
+      }
+
+      document.getElementById('goal-display').classList.add('hidden');
+      document.getElementById('goal-edit-form').classList.remove('hidden');
+    });
+
+    document.getElementById('cancel-goal-btn').addEventListener('click', () => {
+      document.getElementById('goal-edit-form').classList.add('hidden');
+      document.getElementById('goal-display').classList.remove('hidden');
+    });
+
+    document.getElementById('save-goal-btn').addEventListener('click', async () => {
+      const name = document.getElementById('goal-name-input').value.trim();
+      const targetAmount = parseFloat(document.getElementById('goal-amount-input').value) || 0;
+      const savedAmount = parseFloat(document.getElementById('goal-saved-input').value) || 0;
+
+      if (!name || targetAmount <= 0) {
+        alert('Please enter a valid goal name and target amount');
+        return;
+      }
+
+      const goalData = {
+        id: 'userGoal',
+        name,
+        targetAmount,
+        savedAmount
+      };
+
+      const uid = AuthService.isLocalOnly() ? null : currentUser?.uid;
+      await DBService.saveData(uid, 'goals', 'userGoal', goalData);
+
+      updateGoalDisplay(goalData);
+      document.getElementById('goal-edit-form').classList.add('hidden');
+      document.getElementById('goal-display').classList.remove('hidden');
+    });
 
     function renderDashboard(finances, budget) {
       const today = new Date();

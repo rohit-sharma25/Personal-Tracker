@@ -24,6 +24,8 @@ const userPhoto = document.getElementById('user-photo');
 const form = document.getElementById("expense-form");
 const descInput = document.getElementById("expense-desc");
 const amountInput = document.getElementById("expense-amount");
+const categorySelect = document.getElementById("expense-category");
+const subCategorySelect = document.getElementById("expense-subcategory");
 const tableBody = document.getElementById("expense-table-body");
 const summary = document.getElementById("expense-summary");
 const budgetInput = document.getElementById("budget-input");
@@ -39,6 +41,25 @@ const chatClose = document.getElementById('ai-close');
 const chatInput = document.getElementById('ai-chat-input');
 const chatSend = document.getElementById('ai-chat-send');
 const chatBody = document.getElementById('ai-chat-body');
+
+// Category change handler - filter sub-categories
+categorySelect.addEventListener('change', function () {
+  const selectedCategory = this.value;
+  const allOptions = subCategorySelect.querySelectorAll('option');
+
+  // Reset and show placeholder
+  subCategorySelect.value = '';
+
+  allOptions.forEach(option => {
+    if (option.value === '') {
+      option.style.display = 'block'; // Always show placeholder
+    } else if (option.dataset.category === selectedCategory) {
+      option.style.display = 'block'; // Show matching options
+    } else {
+      option.style.display = 'none'; // Hide non-matching options
+    }
+  });
+});
 
 AuthService.onUserChange((user) => {
   currentUser = user;
@@ -96,7 +117,33 @@ function updateFinanceSummary() {
   const today = todayStr();
   const todaySpent = finances.filter(f => f.type === 'expense' && f.dateISO === today).reduce((s, f) => s + f.amount, 0);
   const monthSpent = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(today.slice(0, 7))).reduce((s, f) => s + f.amount, 0);
-  summary.textContent = `Today: ₹${todaySpent.toFixed(2)} | Month Total: ₹${monthSpent.toFixed(2)}`;
+
+  // Update summary cards
+  const todayTotalEl = document.getElementById('today-total');
+  const monthTotalEl = document.getElementById('month-total');
+  const budgetStatusEl = document.getElementById('budget-status');
+
+  if (todayTotalEl) {
+    todayTotalEl.textContent = `₹${todaySpent.toFixed(2)}`;
+  }
+
+  if (monthTotalEl) {
+    monthTotalEl.textContent = `₹${monthSpent.toFixed(2)}`;
+  }
+
+  if (budgetStatusEl && monthlyBudget) {
+    const remaining = monthlyBudget - monthSpent;
+    if (remaining >= 0) {
+      budgetStatusEl.textContent = `₹${remaining.toFixed(2)} Left`;
+      budgetStatusEl.style.color = '#10B981';
+    } else {
+      budgetStatusEl.textContent = `₹${Math.abs(remaining).toFixed(2)} Over`;
+      budgetStatusEl.style.color = '#EF4444';
+    }
+  } else if (budgetStatusEl) {
+    budgetStatusEl.textContent = 'Not Set';
+    budgetStatusEl.style.color = '#6B7280';
+  }
 }
 
 function updateBudgetUI() {
@@ -190,12 +237,45 @@ form.onsubmit = async (e) => {
   const desc = descInput.value.trim();
   const amount = parseFloat(amountInput.value);
   const type = toggleIncome.classList.contains('active') ? 'income' : 'expense';
+  const category = categorySelect.value;
+  const subCategory = subCategorySelect.value;
+  const mode = document.getElementById('expense-mode').value;
+  const dateInput = document.getElementById('expense-date');
+  const dateISO = dateInput.value || todayStr();
 
-  if (!desc || isNaN(amount)) return;
+  if (!desc || isNaN(amount) || amount <= 0) {
+    alert('Please enter valid description and amount');
+    return;
+  }
+
+  if (type === 'expense' && (!category || !subCategory)) {
+    alert('Please select category and sub-category for expenses');
+    return;
+  }
+
   const id = crypto.randomUUID();
-  await DBService.saveData(currentUser?.uid, 'finances', id, { id, desc, amount, type, dateISO: todayStr() });
+  const expenseData = {
+    id,
+    desc,
+    amount,
+    type,
+    dateISO,
+    category: type === 'expense' ? category : '',
+    subCategory: type === 'expense' ? subCategory : '',
+    mode: type === 'expense' ? mode : ''
+  };
+
+  await DBService.saveData(currentUser?.uid, 'finances', id, expenseData);
+
+  // Clear form
   descInput.value = "";
   amountInput.value = "";
+  categorySelect.value = "";
+  subCategorySelect.value = "";
+  dateInput.value = "";
+
+  // Show success message
+  alert('Entry added successfully!');
 };
 
 budgetSave.onclick = async () => {
