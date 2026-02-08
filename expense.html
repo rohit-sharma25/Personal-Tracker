@@ -78,8 +78,10 @@
             <option value="Investment">📈 Investment</option>
             <option value="Shopping">🛍️ Shopping</option>
             <option value="Traveling">✈️ Traveling</option>
-            <option value="Miscellaneous">📦 Miscellaneous</option>
+            <option value="Peoples">👥 Peoples</option>
             <option value="Bill & Subscription">💳 Bill & Subscription</option>
+            <option value="LLM Models">🤖 LLM Models</option>
+            <option value="Miscellaneous">📦 Miscellaneous</option>
           </select>
         </div>
 
@@ -126,6 +128,17 @@
             <option value="Water" data-category="Bill & Subscription">Water</option>
             <option value="Gas" data-category="Bill & Subscription">Gas</option>
             <option value="Mobile" data-category="Bill & Subscription">Mobile</option>
+            <!-- LLM Models -->  
+            <option value="ChatGPT" data-category="LLM Models">ChatGPT</option>
+            <option value="Claude" data-category="LLM Models">Claude</option>
+            <option value="Grok" data-category="LLM Models">Grok</option>
+            <option value="Gemini" data-category="LLM Models">Gemini</option>
+            <option value="Others" data-category="LLM Models">Others</option>
+          <!-- Peoples -->
+            <option value="Family" data-category="Peoples">Family</option>
+            <option value="Friends" data-category="Peoples">Friends</option>
+            <option value="Relatives" data-category="Peoples">Relatives</option>
+            <option value="Others" data-category="Peoples">Others</option>
           </select>
         </div>
 
@@ -226,7 +239,7 @@
             <option value="Miscellaneous">📦 Miscellaneous</option>
             <option value="Bill & Subscription">💳 Bill & Subscription</option>
           </select>
-          <button id="export-btn" class="btn btn-secondary">📥 Export CSV</button>
+          <button id="export-btn" class="btn btn-secondary hidden">📥 Export CSV</button>
         </div>
       </div>
 
@@ -250,27 +263,27 @@
     </section>
   </main>
 
-  <!-- AI FAB -->
-  <div id="ai-fab" class="ai-fab">
+  <!-- THE NEW RADIANT AI CHAT UI -->
+  <div id="ai-chat-fab" class="ai-fab">
     <span>✨</span>
   </div>
 
-  <!-- AI CHAT POPUP -->
   <div id="ai-chat-popup" class="ai-chat-popup hidden">
     <div class="ai-chat-header">
       <div class="ai-chat-title">
-        <span>✨</span>
-        <strong>AI Financial Advisor</strong>
+        <span>🤖</span>
+        <span>Finance AI</span>
       </div>
-      <button id="ai-close" class="btn btn-ghost" style="font-size:1.2rem;">&times;</button>
+      <button id="ai-chat-close" class="btn-icon"
+        style="background:none; border:none; color:white; cursor:pointer; font-size:1.5rem;">×</button>
     </div>
     <div id="ai-chat-body" class="ai-chat-body">
-      <div class="msg-ai">Hello! I'm your AI financial advisor. Ask me about your spending patterns, budget, or get
-        savings tips!</div>
+      <div class="msg-ai">Hello! I'm your new financial advisor. How can I help you today?</div>
     </div>
     <div class="ai-chat-footer">
-      <input type="text" id="ai-chat-input" placeholder="Ask about your expenses..." autocomplete="off">
-      <button id="ai-chat-send" class="ai-chat-send">&rarr;</button>
+      <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type your question..."
+        autocomplete="off">
+      <button id="ai-chat-send" class="ai-chat-send">🚀</button>
     </div>
   </div>
 

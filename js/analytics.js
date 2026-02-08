@@ -2,58 +2,7 @@
 // ANALYTICS.JS - Data Analysis & Insights
 // ============================================
 
-/**
- * Calculate habit statistics
- */
-export function calculateHabitStats(habits, habitLogs) {
-    const stats = {
-        totalHabits: habits.length,
-        activeHabits: 0,
-        totalStreak: 0,
-        longestStreak: 0,
-        completionRate: 0,
-        weeklyCompletion: 0
-    };
 
-    if (habits.length === 0) return stats;
-
-    // Calculate streaks
-    habits.forEach(habit => {
-        const streak = habit.streak || 0;
-        stats.totalStreak += streak;
-        if (streak > stats.longestStreak) {
-            stats.longestStreak = streak;
-        }
-        if (streak > 0) {
-            stats.activeHabits++;
-        }
-    });
-
-    // Calculate weekly completion rate
-    const today = new Date();
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        weekDates.push(d.toISOString().slice(0, 10));
-    }
-
-    let totalPossible = habits.length * 7;
-    let totalCompleted = 0;
-
-    weekDates.forEach(date => {
-        const dayLogs = habitLogs[date] || [];
-        totalCompleted += dayLogs.length;
-    });
-
-    stats.weeklyCompletion = totalPossible > 0
-        ? Math.round((totalCompleted / totalPossible) * 100)
-        : 0;
-
-    stats.completionRate = stats.weeklyCompletion;
-
-    return stats;
-}
 
 /**
  * Calculate finance statistics
@@ -124,34 +73,10 @@ export function calculateFinanceStats(finances, monthlyBudget) {
  */
 export function analyzeSpendingByCategory(finances) {
     const categories = {};
-    const keywords = {
-        'Food': ['food', 'restaurant', 'grocery', 'meal', 'lunch', 'dinner', 'breakfast', 'cafe', 'pizza', 'burger'],
-        'Transport': ['uber', 'taxi', 'bus', 'train', 'metro', 'fuel', 'gas', 'parking', 'transport'],
-        'Shopping': ['amazon', 'shopping', 'clothes', 'shoes', 'store', 'mall', 'purchase'],
-        'Entertainment': ['movie', 'netflix', 'spotify', 'game', 'concert', 'entertainment', 'subscription'],
-        'Bills': ['bill', 'electricity', 'water', 'internet', 'phone', 'rent', 'utility'],
-        'Health': ['medicine', 'doctor', 'hospital', 'pharmacy', 'health', 'gym', 'fitness'],
-        'Other': []
-    };
-
     finances.filter(f => f.type === 'expense').forEach(f => {
-        const desc = f.desc.toLowerCase();
-        let categorized = false;
-
-        for (const [category, words] of Object.entries(keywords)) {
-            if (category === 'Other') continue;
-            if (words.some(word => desc.includes(word))) {
-                categories[category] = (categories[category] || 0) + f.amount;
-                categorized = true;
-                break;
-            }
-        }
-
-        if (!categorized) {
-            categories['Other'] = (categories['Other'] || 0) + f.amount;
-        }
+        const cat = f.category || 'Miscellaneous';
+        categories[cat] = (categories[cat] || 0) + f.amount;
     });
-
     return categories;
 }
 
@@ -181,34 +106,7 @@ export function getSpendingTrend(finances, days = 7) {
     return trend;
 }
 
-/**
- * Get habit completion trend (last 7 days)
- */
-export function getHabitCompletionTrend(habits, habitLogs, days = 7) {
-    const trend = [];
-    const today = new Date();
 
-    for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        const dateStr = date.toISOString().slice(0, 10);
-
-        const dayLogs = habitLogs[dateStr] || [];
-        const completionRate = habits.length > 0
-            ? Math.round((dayLogs.length / habits.length) * 100)
-            : 0;
-
-        trend.push({
-            date: dateStr,
-            completed: dayLogs.length,
-            total: habits.length,
-            rate: completionRate,
-            label: date.toLocaleDateString('en-US', { weekday: 'short' })
-        });
-    }
-
-    return trend;
-}
 
 /**
  * Generate insights based on data
@@ -216,28 +114,7 @@ export function getHabitCompletionTrend(habits, habitLogs, days = 7) {
 export function generateInsights(habitStats, financeStats) {
     const insights = [];
 
-    // Habit insights
-    if (habitStats.longestStreak >= 7) {
-        insights.push({
-            type: 'success',
-            icon: '🔥',
-            message: `Amazing! Your longest streak is ${habitStats.longestStreak} days!`
-        });
-    }
 
-    if (habitStats.weeklyCompletion >= 80) {
-        insights.push({
-            type: 'success',
-            icon: '⭐',
-            message: `Excellent consistency! ${habitStats.weeklyCompletion}% completion this week.`
-        });
-    } else if (habitStats.weeklyCompletion < 50 && habitStats.totalHabits > 0) {
-        insights.push({
-            type: 'warning',
-            icon: '💪',
-            message: `You can do better! Only ${habitStats.weeklyCompletion}% completion this week.`
-        });
-    }
 
     // Finance insights
     if (financeStats.budgetUsedPercent > 90) {
@@ -273,33 +150,4 @@ export function generateInsights(habitStats, financeStats) {
     return insights;
 }
 
-/**
- * Calculate heatmap data for habits
- */
-export function generateHabitHeatmap(habitLogs, weeks = 12) {
-    const heatmapData = [];
-    const today = new Date();
-    const totalDays = weeks * 7;
 
-    for (let i = totalDays - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        const dateStr = date.toISOString().slice(0, 10);
-        const logs = habitLogs[dateStr] || [];
-
-        // Level 0-4 based on number of habits completed
-        let level = 0;
-        if (logs.length > 0) level = 1;
-        if (logs.length >= 2) level = 2;
-        if (logs.length >= 3) level = 3;
-        if (logs.length >= 5) level = 4;
-
-        heatmapData.push({
-            date: dateStr,
-            count: logs.length,
-            level: level
-        });
-    }
-
-    return heatmapData;
-}

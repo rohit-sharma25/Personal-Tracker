@@ -115,6 +115,24 @@
         </div>
       </div>
 
+      <!-- Monthly Income Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">💰</div>
+          <span class="stat-card-badge" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">INCOME</span>
+        </div>
+        <div class="stat-card-body">
+          <h3>Monthly Income</h3>
+          <div class="stat-card-value"
+            style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;"
+            id="monthly-income">₹0.00</div>
+          <div class="stat-card-trend trend-up">
+            <span>🚀</span>
+            <span>Total earnings this month</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Goal Card with Edit Functionality -->
       <div class="stat-card">
         <div class="stat-card-header">
@@ -234,7 +252,7 @@
             <th>Mode</th>
           </tr>
         </thead>
-        <tbody id="expenses-table-body">
+        <tbody id="recent-expenses-body">
           <!-- Expenses will be dynamically inserted -->
         </tbody>
       </table>
@@ -253,27 +271,27 @@
     </section>
   </main>
 
-  <!-- AI FAB -->
-  <div id="ai-fab" class="ai-fab">
+  <!-- THE NEW RADIANT AI CHAT UI -->
+  <div id="ai-chat-fab" class="ai-fab">
     <span>✨</span>
   </div>
 
-  <!-- AI CHAT POPUP -->
   <div id="ai-chat-popup" class="ai-chat-popup hidden">
     <div class="ai-chat-header">
       <div class="ai-chat-title">
-        <span>✨</span>
-        <strong>AI Financial Advisor</strong>
+        <span>🤖</span>
+        <span>Finance AI</span>
       </div>
-      <button id="ai-close" class="btn btn-ghost" style="font-size:1.2rem;">&times;</button>
+      <button id="ai-chat-close" class="btn-icon"
+        style="background:none; border:none; color:white; cursor:pointer; font-size:1.5rem;">×</button>
     </div>
     <div id="ai-chat-body" class="ai-chat-body">
-      <div class="msg-ai">Hello! I'm your AI financial advisor. Ask me anything about your expenses, budget, or savings!
-      </div>
+      <div class="msg-ai">Hello! I'm your new financial advisor. How can I help you today?</div>
     </div>
     <div class="ai-chat-footer">
-      <input type="text" id="ai-chat-input" placeholder="Ask about your expenses..." autocomplete="off">
-      <button id="ai-chat-send" class="ai-chat-send">&rarr;</button>
+      <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type your question..."
+        autocomplete="off">
+      <button id="ai-chat-send" class="ai-chat-send">🚀</button>
     </div>
   </div>
 
@@ -294,9 +312,10 @@
     const greetingName = document.getElementById('greeting-name');
 
     // AI Chat elements
-    const fab = document.getElementById('ai-fab');
+    // AI Chat elements (New IDs)
+    const fab = document.getElementById('ai-chat-fab');
     const popup = document.getElementById('ai-chat-popup');
-    const closeBtn = document.getElementById('ai-close');
+    const closeBtn = document.getElementById('ai-chat-close');
     const chatInput = document.getElementById('ai-chat-input');
     const chatSend = document.getElementById('ai-chat-send');
     const chatBody = document.getElementById('ai-chat-body');
@@ -370,9 +389,17 @@
 
       DBService.subscribe(uid, 'goals', (data) => {
         const savedGoal = data.find(g => g.id === 'userGoal');
-        if (savedGoal) {
-          updateGoalDisplay(savedGoal);
-        }
+        updateGoalDisplay(savedGoal || null);
+      });
+
+      // Chart Period Listeners
+      document.querySelectorAll('[data-period]').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const period = btn.dataset.period;
+          renderMonthlyChart(contextData.finances, period === '1y' ? 12 : 6);
+        };
       });
     }
 
@@ -463,22 +490,29 @@
       // Update dashboard
       document.getElementById('account-balance').textContent = `₹${(monthIncome - monthExpenses).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       document.getElementById('monthly-expenses').textContent = `₹${monthExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const monthlyIncomeEl = document.getElementById('monthly-income');
+      if (monthlyIncomeEl) {
+        monthlyIncomeEl.textContent = `₹${monthIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
       document.getElementById('total-investment').textContent = `₹${totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
     function renderCharts(finances) {
-      renderMonthlyChart(finances);
+      const activePeriod = document.querySelector('[data-period].active')?.dataset.period || '6m';
+      renderMonthlyChart(finances, activePeriod === '1y' ? 12 : 6);
       renderCategoryChart(finances);
     }
 
-    function renderMonthlyChart(finances) {
+    function renderMonthlyChart(finances, numMonths = 6) {
       const ctx = document.getElementById('monthly-chart');
       if (!ctx) return;
 
-      // Get last 6 months data
+      // Get period data
       const months = [];
       const data = [];
-      for (let i = 5; i >= 0; i--) {
+      for (let i = numMonths - 1; i >= 0; i--) {
         const d = new Date();
         d.setMonth(d.getMonth() - i);
         const monthStr = d.toISOString().slice(0, 7);
@@ -611,38 +645,71 @@
     }
 
     function renderRecentExpenses(finances) {
-      const tbody = document.getElementById('expenses-table-body');
-      const recent = finances
+      const tbody = document.getElementById('recent-expenses-body');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      if (!finances || finances.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--muted);">No expenses yet</td></tr>';
+        return;
+      }
+
+      const recentExpenses = finances
         .filter(f => f.type === 'expense')
         .sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO))
         .slice(0, 5);
 
-      const categoryColors = {
-        'Food & Grocery': '#10B981',
-        'Investment': '#8B5CF6',
-        'Shopping': '#F59E0B',
-        'Traveling': '#06B6D4',
-        'Miscellaneous': '#6B7280',
-        'Bill & Subscription': '#EF4444'
+      const categoryEmoji = {
+        'Food & Grocery': '🍔',
+        'Investment': '📈',
+        'Shopping': '🛍️',
+        'Traveling': '✈️',
+        'Miscellaneous': '📦',
+        'Bill & Subscription': '💳'
       };
 
-      tbody.innerHTML = recent.map((exp, i) => {
-        const color = categoryColors[exp.category] || '#6B7280';
-        return `
-          <tr>
-            <td>${i + 1}</td>
-            <td class="expense-amount">₹${exp.amount.toLocaleString('en-IN')}</td>
-            <td>
-              <span class="expense-category-badge" style="background: ${color}20; color: ${color}">
-                ${exp.category || 'Other'}
-              </span>
-            </td>
-            <td class="expense-mode">${exp.subCategory || '-'}</td>
-            <td class="expense-date">${new Date(exp.dateISO).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-            <td class="expense-mode">${exp.mode || 'UPI'}</td>
-          </tr>
+      recentExpenses.forEach(expense => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+
+        const emoji = categoryEmoji[expense.category] || '💸';
+
+        tr.innerHTML = `
+          <td style="padding:12px;">${emoji}</td>
+          <td style="padding:12px; font-weight:500;">${expense.desc}</td>
+          <td style="padding:12px; color:var(--muted); font-size:0.85rem;">${expense.category || 'N/A'}</td>
+          <td style="padding:12px; font-weight:600; color:var(--danger);">₹${Number(expense.amount).toFixed(2)}</td>
+          <td style="padding:12px;">
+            <button class="btn-delete" data-id="${expense.id}" style="background:rgba(239,68,68,0.1); color:#EF4444; border:1px solid rgba(239,68,68,0.2); padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.8rem; font-weight:600; transition: all 0.2s;">
+              Delete
+            </button>
+          </td>
         `;
-      }).join('');
+
+        tbody.appendChild(tr);
+      });
+
+      // Add event listeners to delete buttons
+      tbody.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.addEventListener('click', async function () {
+          const id = this.getAttribute('data-id');
+          if (confirm('Are you sure you want to delete this expense?')) {
+            const uid = AuthService.isLocalOnly() ? null : currentUser?.uid;
+            await DBService.deleteData(uid, 'finances', id);
+          }
+        });
+
+        // Hover effect
+        btn.addEventListener('mouseenter', function () {
+          this.style.background = '#EF4444';
+          this.style.color = '#FFFFFF';
+        });
+        btn.addEventListener('mouseleave', function () {
+          this.style.background = 'rgba(239,68,68,0.1)';
+          this.style.color = '#EF4444';
+        });
+      });
     }
 
     function renderSubscriptions(finances) {
@@ -655,7 +722,8 @@
         'Netflix': '🎬',
         'Spotify': '🎵',
         'WiFi': '📡',
-        'Electricity': '⚡'
+        'Electricity': '⚡',
+        'LLMs':'🤖'
       };
 
       grid.innerHTML = subscriptions.map(sub => `
@@ -665,7 +733,7 @@
             <span class="stat-card-badge" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">ACTIVE</span>
           </div>
           <div class="stat-card-body">
-            <h3>${sub.subCategory || sub.description}</h3>
+            <h3>${sub.subCategory || sub.desc}</h3>
             <div class="stat-card-value" style="font-size: 1.5rem;">₹${sub.amount.toLocaleString('en-IN')}</div>
             <div class="stat-card-trend">
               <span style="font-size: 0.8rem; color: var(--muted);">${new Date(sub.dateISO).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
@@ -675,33 +743,15 @@
       `).join('');
     }
 
-    // AI Chat
-    fab.onclick = () => popup.classList.toggle('hidden');
-    closeBtn.onclick = () => popup.classList.add('hidden');
-
-    async function handleChat() {
-      const msg = chatInput.value.trim();
-      if (!msg) return;
-
-      const userMsg = document.createElement('div');
-      userMsg.className = 'msg-user';
-      userMsg.textContent = msg;
-      chatBody.appendChild(userMsg);
-      chatInput.value = "";
-      chatBody.scrollTop = chatBody.scrollHeight;
-
-      const aiMsg = document.createElement('div');
-      aiMsg.className = 'msg-ai';
-      aiMsg.textContent = "...";
-      chatBody.appendChild(aiMsg);
-
-      const response = await AIService.chat(msg, contextData);
-      aiMsg.innerHTML = response;
-      chatBody.scrollTop = chatBody.scrollHeight;
-    }
-
-    chatSend.onclick = handleChat;
-    chatInput.onkeydown = (e) => e.key === 'Enter' && handleChat();
+    // NEW AI CHAT INITIALIZATION
+    AIService.init({
+      fab: document.getElementById('ai-chat-fab'),
+      popup: document.getElementById('ai-chat-popup'),
+      close: document.getElementById('ai-chat-close'),
+      input: document.getElementById('ai-chat-input'),
+      send: document.getElementById('ai-chat-send'),
+      body: document.getElementById('ai-chat-body')
+    }, () => contextData);
 
     loginBtn.addEventListener('click', () => AuthService.login());
     skipBtn.addEventListener('click', () => { AuthService.setLocalOnly(true); location.reload(); });

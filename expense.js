@@ -88,22 +88,55 @@ AuthService.onUserChange((user) => {
   });
 });
 
+let filterCategory = "";
+let searchQuery = "";
+
+// Filter Listeners
+document.getElementById('filter-category').onchange = (e) => {
+  filterCategory = e.target.value;
+  renderFinances();
+};
+
+document.getElementById('search-input').oninput = (e) => {
+  searchQuery = e.target.value.toLowerCase();
+  renderFinances();
+};
+
 function renderFinances() {
   if (!tableBody) return;
   tableBody.innerHTML = "";
 
-  if (finances.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="5" class="muted center" style="padding:20px;">No entries yet.</td></tr>';
+  const filtered = finances.filter(f => {
+    const matchesCategory = !filterCategory || f.category === filterCategory;
+    const matchesSearch = !searchQuery || f.desc.toLowerCase().includes(searchQuery) || (f.category && f.category.toLowerCase().includes(searchQuery));
+    return matchesCategory && matchesSearch;
+  });
+
+  if (filtered.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="8" class="muted center" style="padding:20px;">No matching entries found.</td></tr>';
   } else {
-    finances.slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO)).forEach(f => {
+    filtered.slice().sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO)).forEach((f, idx) => {
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--border)";
       tr.innerHTML = `
-        <td style="padding:10px;">${f.type === 'income' ? '💰' : '💸'}</td>
-        <td style="padding:10px;">${f.desc}</td>
-        <td style="padding:10px; font-weight:600; color:${f.type === 'income' ? 'var(--success)' : 'var(--text)'}">₹${Number(f.amount).toFixed(2)}</td>
+        <td style="padding:10px;">${idx + 1}</td>
+        <td style="padding:10px; font-weight:600; color:${f.type === 'income' ? 'var(--success)' : 'var(--danger)'}">
+          ${f.type === 'income' ? '+' : '-'} ₹${Number(f.amount).toFixed(2)}
+        </td>
+        <td style="padding:10px;">${f.category || (f.type === 'income' ? 'Income' : 'Misc')}</td>
+        <td style="padding:10px;" class="muted">${f.subCategory || '-'}</td>
         <td style="padding:10px;" class="muted">${f.dateISO}</td>
-        <td style="padding:10px;"><button class="btn accent" style="background:rgba(255,0,0,0.1); color:var(--danger); padding:4px 8px; font-size:0.75rem;">Del</button></td>
+        <td style="padding:10px;">
+          <span style="padding: 2px 6px; background: rgba(0,0,0,0.05); border-radius: 4px; font-size: 0.8rem;">
+            ${f.mode || 'Cash'}
+          </span>
+        </td>
+        <td style="padding:10px;">${f.desc}</td>
+        <td style="padding:10px;">
+          <button class="btn accent" style="background:rgba(255,0,0,0.1); color:var(--danger); padding:4px 8px; font-size:0.75rem; border-radius: 6px; border:none; cursor:pointer;">
+            Delete
+          </button>
+        </td>
       `;
       tr.querySelector('button').onclick = () => deleteEntry(f.id);
       tableBody.appendChild(tr);
@@ -113,23 +146,24 @@ function renderFinances() {
   updateBudgetUI();
 }
 
+
 function updateFinanceSummary() {
   const today = todayStr();
+  const currentMonth = today.slice(0, 7);
+
   const todaySpent = finances.filter(f => f.type === 'expense' && f.dateISO === today).reduce((s, f) => s + f.amount, 0);
-  const monthSpent = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(today.slice(0, 7))).reduce((s, f) => s + f.amount, 0);
+  const monthSpent = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth)).reduce((s, f) => s + f.amount, 0);
+  const monthIncome = finances.filter(f => f.type === 'income' && f.dateISO.startsWith(currentMonth)).reduce((s, f) => s + f.amount, 0);
 
   // Update summary cards
   const todayTotalEl = document.getElementById('today-total');
   const monthTotalEl = document.getElementById('month-total');
+  const monthIncomeEl = document.getElementById('month-income-total');
   const budgetStatusEl = document.getElementById('budget-status');
 
-  if (todayTotalEl) {
-    todayTotalEl.textContent = `₹${todaySpent.toFixed(2)}`;
-  }
-
-  if (monthTotalEl) {
-    monthTotalEl.textContent = `₹${monthSpent.toFixed(2)}`;
-  }
+  if (todayTotalEl) todayTotalEl.textContent = `₹${todaySpent.toFixed(2)}`;
+  if (monthTotalEl) monthTotalEl.textContent = `₹${monthSpent.toFixed(2)}`;
+  if (monthIncomeEl) monthIncomeEl.textContent = `₹${monthIncome.toFixed(2)}`;
 
   if (budgetStatusEl && monthlyBudget) {
     const remaining = monthlyBudget - monthSpent;
@@ -145,6 +179,7 @@ function updateFinanceSummary() {
     budgetStatusEl.style.color = '#6B7280';
   }
 }
+
 
 function updateBudgetUI() {
   if (!monthlyBudget || !budgetWarning) {
@@ -166,7 +201,9 @@ function updateBudgetUI() {
 }
 
 async function deleteEntry(id) {
-  await DBService.deleteData(currentUser?.uid, 'finances', id);
+  if (confirm('Are you sure you want to delete this entry?')) {
+    await DBService.deleteData(currentUser?.uid, 'finances', id);
+  }
 }
 
 function renderAnalytics() {
@@ -177,25 +214,25 @@ function renderAnalytics() {
 
   analyticsStats.innerHTML = `
     <div class="stat-card hover-scale">
-      <span class="stat-card-icon">\ud83d\udcb8</span>
+      <span class="stat-card-icon">💸</span>
       <div class="stat-card-value" style="color: var(--danger)">₹${stats.monthlyExpenses.toFixed(0)}</div>
       <div class="stat-card-label">Monthly Expenses</div>
     </div>
     
     <div class="stat-card hover-scale">
-      <span class="stat-card-icon">\ud83d\udcb0</span>
+      <span class="stat-card-icon">💰</span>
       <div class="stat-card-value" style="color: var(--success)">₹${stats.monthlyIncome.toFixed(0)}</div>
       <div class="stat-card-label">Monthly Income</div>
     </div>
     
     <div class="stat-card hover-scale">
-      <span class="stat-card-icon">\ud83d\udcca</span>
+      <span class="stat-card-icon">📊</span>
       <div class="stat-card-value" style="color: ${stats.savingsRate >= 0 ? 'var(--success)' : 'var(--danger)'}">${stats.savingsRate}%</div>
       <div class="stat-card-label">Savings Rate</div>
     </div>
     
     <div class="stat-card hover-scale">
-      <span class="stat-card-icon">\ud83c\udfaf</span>
+      <span class="stat-card-icon">🎯</span>
       <div class="stat-card-value" style="color: ${stats.budgetUsedPercent > 90 ? 'var(--danger)' : stats.budgetUsedPercent > 70 ? 'var(--warning)' : 'var(--success)'}">₹${stats.avgDailySpending.toFixed(0)}</div>
       <div class="stat-card-label">Avg Daily Spend</div>
     </div>
@@ -278,41 +315,53 @@ form.onsubmit = async (e) => {
   alert('Entry added successfully!');
 };
 
-budgetSave.onclick = async () => {
-  const val = parseFloat(budgetInput.value);
-  await DBService.saveData(currentUser?.uid, 'monthlyBudget', 'settings', { id: 'settings', value: val });
-};
+
+if (budgetSave) {
+  budgetSave.onclick = async () => {
+    const value = parseFloat(budgetInput.value);
+
+    if (isNaN(value) || value < 0) {
+      alert('Please enter a valid budget amount');
+      return;
+    }
+
+    try {
+      const isLocal = AuthService.isLocalOnly();
+      const uid = isLocal ? null : currentUser?.uid;
+
+      if (!isLocal && !uid) {
+        alert('Please sign in to save your budget online, or use Offline mode.');
+        return;
+      }
+
+      await DBService.saveData(uid, 'monthlyBudget', 'settings', { id: 'settings', value });
+
+      monthlyBudget = value;
+      updateBudgetUI();
+      renderAnalytics();
+
+      alert(`Monthly budget set to ₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
+    } catch (error) {
+      console.error('Error saving budget:', error);
+      alert('Failed to save budget. Please check your connection or storage.');
+    }
+  };
+}
+
 
 toggleExpense.onclick = () => { toggleExpense.classList.add('active'); toggleIncome.classList.remove('active'); };
 toggleIncome.onclick = () => { toggleIncome.classList.add('active'); toggleExpense.classList.remove('active'); };
 
-// AI Chat Interaction
-fab.onclick = () => chatPopup.classList.toggle('hidden');
-chatClose.onclick = () => chatPopup.classList.add('hidden');
+// NEW AI CHAT INITIALIZATION
+AIService.init({
+  fab: document.getElementById('ai-chat-fab'),
+  popup: document.getElementById('ai-chat-popup'),
+  close: document.getElementById('ai-chat-close'),
+  input: document.getElementById('ai-chat-input'),
+  send: document.getElementById('ai-chat-send'),
+  body: document.getElementById('ai-chat-body')
+}, () => ({ finances, budget: monthlyBudget }));
 
-async function handleChat() {
-  const msg = chatInput.value.trim();
-  if (!msg) return;
-
-  const userMsg = document.createElement('div');
-  userMsg.className = 'msg-user';
-  userMsg.textContent = msg;
-  chatBody.appendChild(userMsg);
-  chatInput.value = "";
-  chatBody.scrollTop = chatBody.scrollHeight;
-
-  const aiMsg = document.createElement('div');
-  aiMsg.className = 'msg-ai';
-  aiMsg.textContent = "...";
-  chatBody.appendChild(aiMsg);
-
-  const response = await AIService.chat(msg, { finances, budget: monthlyBudget });
-  aiMsg.innerHTML = response;
-  chatBody.scrollTop = chatBody.scrollHeight;
-}
-
-chatSend.onclick = handleChat;
-chatInput.onkeydown = (e) => e.key === 'Enter' && handleChat();
 
 // Calendar History (Simplified for v2)
 document.getElementById('open-calendar').onclick = () => {
