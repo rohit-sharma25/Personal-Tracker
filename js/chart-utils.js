@@ -33,7 +33,7 @@ export const defaultChartOptions = {
             display: true,
             position: 'bottom',
             labels: {
-                color: '#f5f5f7',
+                color: '#000000',
                 padding: 15,
                 font: {
                     family: 'Inter',
