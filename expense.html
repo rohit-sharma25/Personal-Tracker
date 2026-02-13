@@ -38,6 +38,15 @@
           </div>
         </div>
 
+        <nav class="header-nav" style="display: flex; gap: 24px; margin-left: 40px;">
+          <a href="index.html" class="nav-link active"
+                      style="text-decoration: none; color: var(--muted); font-weight: 600; transition: color 0.2s;">Dashboard </a>
+          <a href="invest.html" class="nav-link"
+            style="text-decoration: none; color: var(--muted); font-weight: 600; transition: color 0.2s;">Investments</a>
+          <a href="expense.html" class="nav-link"
+            style="text-decoration: none; color: var(--primary); font-weight: 700; border-bottom: 2px solid var(--primary); padding-bottom: 4px;">Expenses</a>
+        </nav>
+
         <div class="user-section" id="auth-section">
           <div id="logged-out-view" class="row">
             <button id="login-btn" class="btn btn-primary">Sign in with Google</button>
@@ -295,11 +304,11 @@
 
   <!-- THE NEW RADIANT AI CHAT UI -->
   <div id="ai-chat-fab" class="ai-fab">
-        <span>🤖</span>
-     </div>
+    <span>🤖</span>
+  </div>
   </div>
 
- <div id="ai-chat-popup" class="ai-chat-popup hidden">
+  <div id="ai-chat-popup" class="ai-chat-popup hidden">
     <div class="ai-chat-header">
       <div class="ai-chat-title">
         <span>🤖</span>

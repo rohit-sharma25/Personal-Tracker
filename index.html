@@ -26,6 +26,15 @@
           </div>
         </div>
 
+        <nav class="header-nav" style="display: flex; gap: 24px; margin-left: 40px;">
+          <a href="index.html" class="nav-link active"
+            style="text-decoration: none; color: var(--primary); font-weight: 700; border-bottom: 2px solid var(--primary); padding-bottom: 4px;">Dashboard</a>
+          <a href="invest.html" class="nav-link"
+            style="text-decoration: none; color: var(--muted); font-weight: 600; transition: color 0.2s;">Investments</a>
+          <a href="expense.html" class="nav-link"
+            style="text-decoration: none; color: var(--muted); font-weight: 600; transition: color 0.2s;">Expenses</a>
+        </nav>
+
         <div class="user-section" id="auth-section">
           <div id="logged-out-view" class="row">
             <button id="login-btn" class="btn btn-primary">Sign in with Google</button>
@@ -70,9 +79,9 @@
         <div class="insight-text">
           <div
             style="font-size: 0.65rem; text-transform: uppercase; font-weight: 800; color: #5B6CF2; margin-bottom: 2px;">
-            GROQ LLAMA 3.3 INTELLIGENCE</div>
+            AI WEALTH INTELLIGENCE</div>
           <div id="ai-dashboard-insight">
-            <span class="typing-dots">Analyzing your financial behavior...</span>
+            <span class="typing-dots">Analyzing your portfolio and behavior...</span>
           </div>
         </div>
       </div>
@@ -80,54 +89,53 @@
 
     <!-- GEN-3 Financial Intelligence Grid -->
     <div class="dashboard-grid animate-fade-in-up stagger-1">
-      <!-- Financial Health Card -->
-      <div class="stat-card health-card" id="health-card">
-        <div class="stat-card-header">
-          <div class="stat-card-icon">🏥</div>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <span id="ai-verified-badge" class="health-status"
-              style="background: rgba(91, 108, 242, 0.1); color: var(--primary); font-size: 0.6rem; display: none;">AI
-              VERIFIED</span>
-            <span id="health-status" class="health-status health-stable">STABLE</span>
-          </div>
-        </div>
-        <div class="stat-card-body">
-          <h3>Health Score</h3>
-          <div class="risk-value" id="risk-score">0</div>
-          <div class="risk-label">Risk Rating: <span id="risk-label">Low</span></div>
-          <div id="ai-risk-reasoning"
-            style="font-size: 0.7rem; color: var(--muted); margin-top: 8px; font-style: italic; display: none;"></div>
-        </div>
-      </div>
-
-      <!-- Burn Rate Card -->
-      <div class="stat-card burn-rate-card">
-        <div class="stat-card-header">
-          <div class="stat-card-icon">🔥</div>
-          <span class="stat-card-badge" style="background: rgba(0,0,0,0.05);">BURN RATE</span>
-        </div>
-        <div class="stat-card-body">
-          <h3>Daily Spending</h3>
-          <div class="stat-card-value" id="burn-rate">₹0</div>
-          <div class="burn-bar-container">
-            <div id="burn-bar" class="burn-bar" style="width: 0%"></div>
-          </div>
-          <p style="font-size: 0.75rem; color: var(--muted);" id="burn-text">Calculating monthly velocity...</p>
-        </div>
-      </div>
-
       <!-- Account Balance Card -->
       <div class="stat-card">
         <div class="stat-card-header">
           <div class="stat-card-icon">💳</div>
-          <span class="stat-card-badge" style="background: rgba(0,0,0,0.05);">BALANCE</span>
+          <span class="stat-card-badge" style="background: rgba(0,0,0,0.05);">CASH</span>
         </div>
         <div class="stat-card-body">
-          <h3>Account Balance</h3>
+          <h3>Available Cash</h3>
           <div class="stat-card-value" id="account-balance">₹0.00</div>
-          <div class="stat-card-trend trend-up">
-            <span>🚀</span>
-            <span>Net Financial Standing</span>
+          <div id="health-status-container" style="margin-top: 8px;">
+            <span id="health-status" class="health-status health-stable">STABLE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Financial Health Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">🛡️</div>
+          <span class="stat-card-badge"
+            style="background: rgba(91, 108, 242, 0.1); color: var(--primary);">HEALTH</span>
+        </div>
+        <div class="stat-card-body">
+          <h3>Safety Level</h3>
+          <div class="stat-card-value" id="risk-label">Low Risk</div>
+          <div class="stat-card-trend">
+            <span id="risk-score">0</span><span>/100 score</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Burn Rate Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-card-icon">🔥</div>
+          <span class="stat-card-badge" style="background: rgba(239, 68, 68, 0.1); color: #EF4444;">BURN RATE</span>
+        </div>
+        <div class="stat-card-body">
+          <h3>Daily Spending</h3>
+          <div class="stat-card-value" id="burn-rate">₹0</div>
+          <div class="stat-card-trend">
+            <div style="width: 100%; background: rgba(0,0,0,0.05); height: 4px; border-radius: 99px; margin-top: 8px;">
+              <div id="burn-bar" style="width: 0%; height: 100%; background: #EF4444; border-radius: 99px;"></div>
+            </div>
+            <span id="burn-text"
+              style="font-size: 0.7rem; color: var(--muted); margin-top: 4px; display: block;">Projected: ₹0
+              end-of-month</span>
           </div>
         </div>
       </div>
@@ -282,18 +290,19 @@
       <!-- Top Category Chart -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3 class="chart-title">🎯 Top Category</h3>
+          <h3 class="chart-title">🎯 Category Breakdown</h3>
           <div class="chart-filter">
-            <button class="filter-btn active" data-view="recent">Recent</button>
+            <button class="filter-btn active">Overview</button>
           </div>
         </div>
         <div class="chart-container" style="height: 250px;">
           <canvas id="category-chart"></canvas>
         </div>
         <div class="category-list" id="category-list">
-          <!-- Categories will be dynamically inserted -->
+          <!-- Categories injected here -->
         </div>
       </div>
+
     </div>
 
     <!-- Recent Expenses Section -->
@@ -382,7 +391,6 @@
     const greetingName = document.getElementById('greeting-name');
 
     // AI Chat elements
-    // AI Chat elements (New IDs)
     const fab = document.getElementById('ai-chat-fab');
     const popup = document.getElementById('ai-chat-popup');
     const closeBtn = document.getElementById('ai-chat-close');
@@ -390,7 +398,11 @@
     const chatSend = document.getElementById('ai-chat-send');
     const chatBody = document.getElementById('ai-chat-body');
 
-    let contextData = { finances: [], budget: null, engineState: { state: {}, risks: {}, behavior: {} } };
+    let contextData = {
+      finances: [],
+      budget: null,
+      engineState: { state: {}, risks: {}, behavior: {} }
+    };
     let monthlyChart = null;
     let categoryChart = null;
     let lastAiUpdate = 0;
@@ -471,7 +483,7 @@
         if (state && risks && behavior) {
           updateAISmartDashboard(state, risks, behavior);
           contextData.engineState = { state, risks, behavior };
-          document.getElementById('ai-verified-badge').style.display = 'inline-block';
+          // Note: removed health card elements from HTML, but logic kept for AI context
         }
       });
 
@@ -480,45 +492,10 @@
         updateGoalDisplay(savedGoal || null);
       });
 
-      // Chart Period Listeners
-      document.querySelectorAll('[data-period]').forEach(btn => {
-        btn.onclick = () => {
-          document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const period = btn.dataset.period;
-          renderMonthlyChart(contextData.finances, period === '1y' ? 12 : 6, currentChartType);
-        };
-      });
-
-      // Chart Type Listeners
-      document.querySelectorAll('#monthly-chart-type-filter [data-type]').forEach(btn => {
-        btn.onclick = () => {
-          document.querySelectorAll('#monthly-chart-type-filter [data-type]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentChartType = btn.dataset.type;
-          const activePeriod = document.querySelector('[data-period].active')?.dataset.period || '6m';
-          renderMonthlyChart(contextData.finances, activePeriod === '1y' ? 12 : 6, currentChartType);
-          renderCategoryChart(contextData.finances, currentChartType);
-          renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
-
-          // Update Titles
-          const recentTitle = document.getElementById('recent-transactions-title');
-          if (recentTitle) {
-            recentTitle.textContent = currentChartType === 'expense' ? '📋 Recent Expenses' : '💰 Recent Income';
-          }
-        };
-      });
-
-      // Filter Recent Expenses Listeners
-      document.querySelectorAll('.expenses-section .filter-btn[data-filter]').forEach(btn => {
-        btn.onclick = () => {
-          document.querySelectorAll('.expenses-section .filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentFilter = btn.dataset.filter;
-          renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
-        };
-      });
+      // Start AI Insight Analysis
+      lastAiUpdate = 0; // Trigger immediately
     }
+
 
     // Goal Management Functions
     function updateGoalDisplay(goal) {
@@ -621,6 +598,7 @@
       renderMonthlyChart(finances, activePeriod === '1y' ? 12 : 6, currentChartType);
       renderCategoryChart(finances, currentChartType);
     }
+
 
     function updateHealthUI(risks) {
       if (!risks || typeof risks.riskScore === 'undefined') return;

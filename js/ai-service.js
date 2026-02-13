@@ -179,4 +179,56 @@ export class AIService {
             return null;
         }
     }
+
+    static async generateInvestmentInsight(context) {
+        if (!CONFIG.GROQ_API_KEY) return null;
+
+        const { totalWealth, portfolioGain, diversification, savingsProgress, riskProfile } = context;
+
+        const systemPrompt = `
+            You are "Expensify Wealth Strategist", an elite investment advisor.
+            Provide a punchy, professional wealth management insight.
+            
+            Context:
+            - Net Wealth: ₹${totalWealth}
+            - Portfolio Gain: ${portfolioGain.toFixed(2)}%
+            - Diversification Score: ${diversification}/100
+            - Savings Progress: ${savingsProgress.toFixed(1)}%
+            - Risk Profile: ${riskProfile}
+            
+            Rules:
+            1. MAX 15 WORDS.
+            2. High-conviction, professional tone.
+            3. Address specific gaps.
+            
+            Example: "Portfolio gain at 8%. Diversification is low—consider rebalancing into Gold to hedge risk."
+        `;
+
+        try {
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${CONFIG.GROQ_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: "llama-3.3-70b-versatile",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: "Provide wealth management insight." }
+                    ],
+                    temperature: 0.5,
+                    max_tokens: 100
+                })
+            });
+
+            if (!response.ok) return null;
+
+            const data = await response.json();
+            return data.choices[0].message.content.trim();
+        } catch (error) {
+            console.error("Investment AI Error:", error);
+            return null;
+        }
+    }
 }

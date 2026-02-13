@@ -77,6 +77,12 @@
   --health-critical: #EF4444;
   --health-warning: #F59E0B;
   --health-stable: #10B981;
+
+  /* Groww Theme Accents */
+  --groww-green: #00D09C;
+  --groww-dark: #121212;
+  --groww-bg: #F9FAFB;
+  --groww-border: #EBEDF0;
 }
 
 /* ========== RESET & BASE ========== */
@@ -1128,4 +1134,120 @@ select:focus {
 
 .animate-slide-in {
   animation: slideInRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========== INVESTMENT ENGINE STYLES ========== */
+
+.price-ticker-container {
+  background: #000;
+  color: #fff;
+  padding: 10px 0;
+  overflow: hidden;
+  margin-bottom: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  position: relative;
+}
+
+.price-ticker {
+  display: flex;
+  gap: 40px;
+  animation: ticker 30s linear infinite;
+  white-space: nowrap;
+  padding-left: 100%;
+}
+
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-200%);
+  }
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.ticker-price {
+  color: #fff;
+}
+
+.ticker-change {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ticker-change.up {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10B981;
+}
+
+.ticker-change.down {
+  background: rgba(239, 68, 68, 0.2);
+  color: #EF4444;
+}
+
+.portfolio-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-light);
+}
+
+.p-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.p-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.p-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.p-value.up {
+  color: var(--success);
+}
+
+.p-value.down {
+  color: var(--danger);
+}
+
+.savings-visual {
+  margin-top: var(--spacing-md);
+}
+
+.savings-bar-container {
+  width: 100%;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.savings-bar {
+  height: 100%;
+  background: var(--gradient-success);
+  border-radius: 99px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#savings-text {
+  font-size: 0.75rem;
+  color: var(--muted);
 }
