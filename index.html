@@ -21,7 +21,7 @@
             <img src="img/logo.jpg">
           </div>
           <div class="brand-text">
-            <h1>EXPENSIFY</h1>
+            <h1 style="color: #000000; background: none; -webkit-background-clip: unset; -webkit-text-fill-color: unset; background-clip: unset;">EXPENSIFY</h1>
             <p>Track all of expenses and transactions</p>
           </div>
         </div>
@@ -97,7 +97,8 @@
         </div>
         <div class="stat-card-body">
           <h3>Available Cash</h3>
-          <div class="stat-card-value" id="account-balance">₹0.00</div>
+          <div class="stat-card-value" id="account-balance"
+            style="color: #000000; background: none; -webkit-text-fill-color: unset;">₹0.00</div>
           <div id="health-status-container" style="margin-top: 8px;">
             <span id="health-status" class="health-status health-stable">STABLE</span>
           </div>
@@ -113,7 +114,8 @@
         </div>
         <div class="stat-card-body">
           <h3>Safety Level</h3>
-          <div class="stat-card-value" id="risk-label">Low Risk</div>
+          <div class="stat-card-value" id="risk-label"
+            style="color: #000000; background: none; -webkit-text-fill-color: unset;">Low Risk</div>
           <div class="stat-card-trend">
             <span id="risk-score">0</span><span>/100 score</span>
           </div>
@@ -128,7 +130,8 @@
         </div>
         <div class="stat-card-body">
           <h3>Daily Spending</h3>
-          <div class="stat-card-value" id="burn-rate">₹0</div>
+          <div class="stat-card-value" id="burn-rate"
+            style="color: #000000; background: none; -webkit-text-fill-color: unset;">₹0</div>
           <div class="stat-card-trend">
             <div style="width: 100%; background: rgba(0,0,0,0.05); height: 4px; border-radius: 99px; margin-top: 8px;">
               <div id="burn-bar" style="width: 0%; height: 100%; background: #EF4444; border-radius: 99px;"></div>
@@ -310,8 +313,8 @@
       <div class="section-header">
         <h3 class="section-title" id="recent-transactions-title">📋 Recent Expenses</h3>
         <div class="row">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="recent">Recent</button>
+          <button class="filter-btn" data-filter="all">All</button>
+          <button class="filter-btn active" data-filter="recent">Recent</button>
           <a href="expense.html" class="btn btn-primary">+ Add Entry</a>
         </div>
       </div>
@@ -376,6 +379,8 @@
     import { AuthService } from './js/auth-service.js';
     import { DBService } from './js/db-service.js';
     import { AIService } from './js/ai-service.js';
+    import { FinancialEngine } from './js/financial-engine.js';
+    import { NotificationService } from './js/notification-service.js';
     import { calculateBudgetTrajectory, analyzeSpendingByCategory } from './js/analytics.js';
     import { createTrajectoryChart, destroyChart } from './js/chart-utils.js';
 
@@ -408,7 +413,15 @@
     let lastAiUpdate = 0;
     let currentUser = null;
     let currentChartType = 'expense';
-    let currentFilter = 'all';
+    let currentFilter = 'recent';
+
+    // Escape HTML to prevent injection when inserting strings into innerHTML
+    function escapeHTML(str) {
+      if (str === null || typeof str === 'undefined') return '';
+      return String(str).replace(/[&<>"']/g, function (s) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s];
+      });
+    }
 
     // Update time
     function updateTime() {
@@ -438,6 +451,19 @@
         userEmail.textContent = user.email;
         userPhoto.src = user.photoURL;
         greetingName.textContent = user.displayName.split(' ')[0];
+        
+        // 🔔 Request notification permission early (before any alerts are triggered)
+        if (NotificationService.isSupported() && Notification.permission === 'default') {
+          NotificationService.requestPermission()
+            .then(permission => {
+              console.log('📢 Notification permission:', permission);
+              if (permission === 'granted') {
+                NotificationService.show('Dashboard Alerts Active', 'You\'ll receive spending and investment notifications.');
+              }
+            })
+            .catch(err => console.warn('⚠️ Notification permission request failed:', err));
+        }
+        
         loadData(user.uid);
       } else {
         const isLocal = AuthService.isLocalOnly();
@@ -458,17 +484,43 @@
 
     async function loadData(uid) {
       // Set up real-time subscriptions for automatic updates
-      DBService.subscribe(uid, 'finances', (data) => {
+      DBService.subscribe(uid, 'finances', async (data) => {
         contextData.finances = data;
+
+        // Calculate and Save Engine State
+        if (contextData.budget) {
+          const state = FinancialEngine.calculateState(data, contextData.budget);
+          const risks = FinancialEngine.runRiskEngine(state, contextData.budget);
+          const behavior = FinancialEngine.runBehaviorModel(data);
+
+          // Save to Firebase
+          await DBService.saveData(uid, 'engineState', 'financialState', { id: 'financialState', ...state });
+          await DBService.saveData(uid, 'engineState', 'riskSignals', { id: 'riskSignals', ...risks });
+          await DBService.saveData(uid, 'engineState', 'behaviorProfile', { id: 'behaviorProfile', ...behavior });
+        }
+
         renderDashboard(contextData.finances, contextData.budget);
         renderCharts(contextData.finances);
         renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
         renderSubscriptions(contextData.finances);
+        processProactiveAlerts(contextData.finances, contextData.budget);
       });
 
-      DBService.subscribe(uid, 'monthlyBudget', (data) => {
+      DBService.subscribe(uid, 'monthlyBudget', async (data) => {
         const settings = data.find(d => d.id === 'settings');
         contextData.budget = settings ? settings.value : null;
+
+        // Recalculate engine state when budget changes
+        if (contextData.budget && contextData.finances.length > 0) {
+          const state = FinancialEngine.calculateState(contextData.finances, contextData.budget);
+          const risks = FinancialEngine.runRiskEngine(state, contextData.budget);
+          const behavior = FinancialEngine.runBehaviorModel(contextData.finances);
+
+          await DBService.saveData(uid, 'engineState', 'financialState', { id: 'financialState', ...state });
+          await DBService.saveData(uid, 'engineState', 'riskSignals', { id: 'riskSignals', ...risks });
+          await DBService.saveData(uid, 'engineState', 'behaviorProfile', { id: 'behaviorProfile', ...behavior });
+        }
+
         renderDashboard(contextData.finances, contextData.budget);
       });
 
@@ -517,30 +569,43 @@
       document.getElementById('goal-progress-text').textContent = `${progress.toFixed(0)}% Complete (₹${savedAmount.toLocaleString('en-IN')} saved)`;
     }
 
-    // Goal Edit/Save Handlers
-    document.getElementById('edit-goal-btn').addEventListener('click', async () => {
+    // Goal Edit/Save Handlers (guarded)
+    const editGoalBtn = document.getElementById('edit-goal-btn');
+    if (editGoalBtn) editGoalBtn.addEventListener('click', async () => {
       const goalData = await DBService.fetchData(AuthService.isLocalOnly() ? null : currentUser?.uid, 'goals');
       const savedGoal = goalData.find(g => g.id === 'userGoal');
 
       if (savedGoal) {
-        document.getElementById('goal-name-input').value = savedGoal.name || '';
-        document.getElementById('goal-amount-input').value = savedGoal.targetAmount || '';
-        document.getElementById('goal-saved-input').value = savedGoal.savedAmount || '';
+        const nameInput = document.getElementById('goal-name-input');
+        const targetInput = document.getElementById('goal-amount-input');
+        const savedInput = document.getElementById('goal-saved-input');
+        if (nameInput) nameInput.value = savedGoal.name || '';
+        if (targetInput) targetInput.value = savedGoal.targetAmount || '';
+        if (savedInput) savedInput.value = savedGoal.savedAmount || '';
       }
 
-      document.getElementById('goal-display').classList.add('hidden');
-      document.getElementById('goal-edit-form').classList.remove('hidden');
+      const display = document.getElementById('goal-display');
+      const form = document.getElementById('goal-edit-form');
+      if (display) display.classList.add('hidden');
+      if (form) form.classList.remove('hidden');
     });
 
-    document.getElementById('cancel-goal-btn').addEventListener('click', () => {
-      document.getElementById('goal-edit-form').classList.add('hidden');
-      document.getElementById('goal-display').classList.remove('hidden');
+    const cancelGoalBtn = document.getElementById('cancel-goal-btn');
+    if (cancelGoalBtn) cancelGoalBtn.addEventListener('click', () => {
+      const form = document.getElementById('goal-edit-form');
+      const display = document.getElementById('goal-display');
+      if (form) form.classList.add('hidden');
+      if (display) display.classList.remove('hidden');
     });
 
-    document.getElementById('save-goal-btn').addEventListener('click', async () => {
-      const name = document.getElementById('goal-name-input').value.trim();
-      const targetAmount = parseFloat(document.getElementById('goal-amount-input').value) || 0;
-      const savedAmount = parseFloat(document.getElementById('goal-saved-input').value) || 0;
+    const saveGoalBtn = document.getElementById('save-goal-btn');
+    if (saveGoalBtn) saveGoalBtn.addEventListener('click', async () => {
+      const nameEl = document.getElementById('goal-name-input');
+      const targetEl = document.getElementById('goal-amount-input');
+      const savedEl = document.getElementById('goal-saved-input');
+      const name = nameEl ? nameEl.value.trim() : '';
+      const targetAmount = targetEl ? parseFloat(targetEl.value) || 0 : 0;
+      const savedAmount = savedEl ? parseFloat(savedEl.value) || 0 : 0;
 
       if (!name || targetAmount <= 0) {
         alert('Please enter a valid goal name and target amount');
@@ -558,8 +623,10 @@
       await DBService.saveData(uid, 'goals', 'userGoal', goalData);
 
       updateGoalDisplay(goalData);
-      document.getElementById('goal-edit-form').classList.add('hidden');
-      document.getElementById('goal-display').classList.remove('hidden');
+      const form = document.getElementById('goal-edit-form');
+      const display = document.getElementById('goal-display');
+      if (form) form.classList.add('hidden');
+      if (display) display.classList.remove('hidden');
     });
 
     function renderDashboard(finances, budget) {
@@ -660,11 +727,33 @@
         });
 
         if (insight) {
-          insightEl.innerHTML = insight;
+          insightEl.innerHTML = escapeHTML(insight);
         }
       } catch (err) {
         console.error("Dashboard AI Insight Error:", err);
       }
+    }
+
+    function processProactiveAlerts(finances, budget) {
+      if (!budget) return;
+
+      const alerts = FinancialEngine.getAlerts(finances, budget);
+
+      alerts.forEach(alert => {
+        const alertKey = `last_alert_${alert.type}_${alert.message.length}`;
+        const lastShown = sessionStorage.getItem(alertKey);
+        const now = Date.now();
+
+        if (!lastShown || (now - parseInt(lastShown)) > (120 * 60 * 1000)) {
+          NotificationService.show(alert.title, alert.message);
+          sessionStorage.setItem(alertKey, now.toString());
+
+          const chatBody = document.getElementById('ai-chat-body');
+          if (chatBody) {
+            AIService.appendMessage(chatBody, `<strong>${alert.title}</strong><br>${alert.message}`, 'ai');
+          }
+        }
+      });
     }
 
     function renderMonthlyChart(finances, numMonths = 6, type = 'expense') {
@@ -807,8 +896,8 @@
         <div class="category-item">
           <div class="category-color" style="background: ${colors[i]}"></div>
           <div class="category-info">
-            <span class="category-name">${label}</span>
-            <span class="category-amount">₹${data[i].toLocaleString('en-IN')}</span>
+            <span class="category-name">${escapeHTML(label)}</span>
+            <span class="category-amount">₹${escapeHTML(String(data[i].toLocaleString('en-IN')))}</span>
           </div>
         </div>
       `).join('');
@@ -864,24 +953,32 @@
 
         const emoji = categoryEmoji[expense.category] || (type === 'income' ? '💰' : '💸');
 
+        const safeId = escapeHTML(expense.id);
+        const safeAmount = escapeHTML(String(Number(expense.amount || 0).toFixed(2)));
+        const safeCategory = escapeHTML(expense.category || (type === 'income' ? 'Income' : 'N/A'));
+        const safeSub = escapeHTML(expense.subCategory || '-');
+        const safeDate = escapeHTML(expense.dateISO || '');
+        const safeMode = escapeHTML(expense.mode || (type === 'income' ? 'Direct' : 'Cash'));
+        const safeDesc = escapeHTML(expense.desc || '');
+
         tr.innerHTML = `
           <td style="padding:12px; color:var(--muted); font-size:0.85rem;">${index + 1}</td>
           <td style="padding:12px;">
-            <span style="font-weight:700; color:${amountColor}; font-size:0.95rem;">${type === 'income' ? '+' : '-'} ₹${Number(expense.amount).toFixed(2)}</span>
+            <span style="font-weight:700; color:${amountColor}; font-size:0.95rem;">${type === 'income' ? '+' : '-'} ₹${safeAmount}</span>
           </td>
-          <td style="padding:12px; color:var(--text); font-size:0.85rem;">${emoji} ${expense.category || (type === 'income' ? 'Income' : 'N/A')}</td>
-          <td style="padding:12px; color:var(--muted); font-size:0.85rem;">${expense.subCategory || '-'}</td>
-          <td style="padding:12px; color:var(--muted); font-size:0.85rem;">${expense.dateISO}</td>
+          <td style="padding:12px; color:var(--text); font-size:0.85rem;">${emoji} ${safeCategory}</td>
+          <td style="padding:12px; color:var(--muted); font-size:0.85rem;">${safeSub}</td>
+          <td style="padding:12px; color:var(--muted); font-size:0.85rem;">${safeDate}</td>
           <td style="padding:12px;">
             <span style="padding: 4px 10px; background: rgba(0,0,0,0.05); border-radius: 99px; font-size: 0.75rem; font-weight:600; color:var(--primary);">
-              ${expense.mode || (type === 'income' ? 'Direct' : 'Cash')}
+              ${safeMode}
             </span>
           </td>
           <td style="padding:12px; color:var(--text); font-size:0.85rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-            ${expense.desc}
+            ${safeDesc}
           </td>
           <td style="padding:12px;">
-            <button class="btn-delete" data-id="${expense.id}" style="background:${deleteBg}; color:${deleteColor}; border:1px solid ${deleteBorder}; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:0.8rem; font-weight:700; transition: all 0.2s;">
+            <button class="btn-delete" data-id="${safeId}" style="background:${deleteBg}; color:${deleteColor}; border:1px solid ${deleteBorder}; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:0.8rem; font-weight:700; transition: all 0.2s;">
               Delete
             </button>
           </td>
@@ -926,21 +1023,29 @@
         'LLMs': '🤖'
       };
 
-      grid.innerHTML = subscriptions.map(sub => `
-        <div class="stat-card">
-          <div class="stat-card-header">
-            <div class="stat-card-icon">${icons[sub.subCategory] || '💳'}</div>
-            <span class="stat-card-badge" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">ACTIVE</span>
-          </div>
-          <div class="stat-card-body">
-            <h3>${sub.subCategory || sub.desc}</h3>
-            <div class="stat-card-value" style="font-size: 1.5rem;">₹${sub.amount.toLocaleString('en-IN')}</div>
-            <div class="stat-card-trend">
-              <span style="font-size: 0.8rem; color: var(--muted);">${new Date(sub.dateISO).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+      if (grid) {
+        grid.innerHTML = subscriptions.map(sub => {
+          const title = escapeHTML(sub.subCategory || sub.desc || 'Subscription');
+          const amount = escapeHTML(String((sub.amount || 0).toLocaleString('en-IN')));
+          const date = sub.dateISO ? escapeHTML(new Date(sub.dateISO).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })) : '';
+          const icon = icons[sub.subCategory] || '💳';
+          return `
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <div class="stat-card-icon">${icon}</div>
+                <span class="stat-card-badge" style="background: rgba(239, 68, 68, 0.15); color: #EF4444;">ACTIVE</span>
+              </div>
+              <div class="stat-card-body">
+                <h3>${title}</h3>
+                <div class="stat-card-value" style="font-size: 1.5rem; color: #000000; background: none; -webkit-text-fill-color: unset;">₹${amount}</div>
+                <div class="stat-card-trend">
+                  <span style="font-size: 0.8rem; color: var(--muted);">${date}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      `).join('');
+          `;
+        }).join('');
+      }
     }
 
     // NEW AI CHAT INITIALIZATION
@@ -953,9 +1058,40 @@
       body: document.getElementById('ai-chat-body')
     }, () => contextData);
 
-    loginBtn.addEventListener('click', () => AuthService.login());
-    skipBtn.addEventListener('click', () => { AuthService.setLocalOnly(true); location.reload(); });
-    logoutBtn.addEventListener('click', () => { AuthService.setLocalOnly(false); AuthService.logout(); location.reload(); });
+    // Filter Event Listeners
+    // Period filter (6m / 1y)
+    document.querySelectorAll('[data-period]').forEach(btn => {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        renderCharts(contextData.finances);
+      });
+    });
+
+    // Chart type filter (expense / income)
+    document.querySelectorAll('#monthly-chart-type-filter [data-type]').forEach(btn => {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('#monthly-chart-type-filter [data-type]').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentChartType = this.dataset.type;
+        renderCharts(contextData.finances);
+        renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
+      });
+    });
+
+    // Recent expenses filter (all / recent)
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentFilter = this.dataset.filter;
+        renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
+      });
+    });
+
+    if (loginBtn) loginBtn.addEventListener('click', () => AuthService.login());
+    if (skipBtn) skipBtn.addEventListener('click', () => { AuthService.setLocalOnly(true); location.reload(); });
+    if (logoutBtn) logoutBtn.addEventListener('click', () => { AuthService.setLocalOnly(false); AuthService.logout(); location.reload(); });
   </script>
 </body>
 

@@ -4,51 +4,129 @@ import { DBService } from './db-service.js';
 export class PriceService {
     static ALPHA_BASE_URL = 'https://www.alphavantage.co/query';
     static FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+    static TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
+    static RAPID_YAHOO_BASE_URL = 'https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/quotes';
+    static GOLD_API_BASE_URL = 'https://www.goldapi.io/api';
 
-    /**
-     * SYMBOL MAPPING
-     * Internal App Symbol -> API Symbol
-     */
-    static SYMBOL_MAP = {
-        'GOLD': { finnhub: 'OANDA:XAU_USD', alpha: 'GOLD' }, // Finnhub: Forex/CFD, Alpha: Commodity
-        'SILVER': { finnhub: 'OANDA:XAG_USD', alpha: 'SILVER' },
-        'RELIANCE.BSE': { finnhub: 'RELIANCE.NS', alpha: 'RELIANCE.BSE' }, // Finnhub prefers NS for India
-        'TCS.BSE': { finnhub: 'TCS.NS', alpha: 'TCS.BSE' },
-        'INFY.BSE': { finnhub: 'INFY.NS', alpha: 'INFY.BSE' },
-        'HDFCBANK.BSE': { finnhub: 'HDFCBANK.NS', alpha: 'HDFCBANK.BSE' }
+    static exchangeRate = null;
+    static exchangeRateUpdatedAt = null;
+    static EXCHANGE_RATE_CACHE_DURATION = 3600000; // 1 hour
+
+    // API Call Caching: Limit expensive APIs to 1-2 calls per day
+    static apiCallCache = {};
+    static API_CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours between API calls
+
+    // Cached commodity prices (realistic market rates as of 2026)
+    static lastKnownPrices = {
+        'GOLD': { price: 6250, change: 0, changePercent: '0.00%', prevClose: 6250, isLive: false },
+        'SILVER': { price: 85, change: 0, changePercent: '0.00%', prevClose: 85, isLive: false },
     };
 
     /**
-     * SIMULATED BACKEND TRIGGER
-     * This method acts as a Cloud Function trigger.
-     * It fetches data from APIs and updates the 'cachedMarketData' collection in Firestore.
-     * The Dashboard reads ONLY from Firestore.
+     * SYMBOL MAPPING
+     * Internal App Symbol -> API Specific Symbols
+     */
+    static SYMBOL_MAP = {
+        'GOLD': { goldapi: 'XAU', finnhub: 'OANDA:XAU_USD', alpha: 'GOLD' },
+        'SILVER': { goldapi: 'XAG', finnhub: 'OANDA:XAG_USD', alpha: 'SILVER' },
+        'RELIANCE.BSE': { yahoo: 'RELIANCE.NS', twelvedata: 'RELIANCE', finnhub: 'RELIANCE.NS' },
+        'TCS.BSE': { yahoo: 'TCS.NS', twelvedata: 'TCS', finnhub: 'TCS.NS' },
+        'INFY.BSE': { yahoo: 'INFY.NS', twelvedata: 'INFY', finnhub: 'INFY.NS' },
+        'HDFCBANK.BSE': { yahoo: 'HDFCBANK.NS', twelvedata: 'HDFCBANK', finnhub: 'HDFCBANK.NS' }
+    };
+
+    /**
+     * Fetch live INR/USD exchange rate
+     */
+    static async getExchangeRate() {
+        const now = Date.now();
+        if (this.exchangeRate && this.exchangeRateUpdatedAt &&
+            (now - this.exchangeRateUpdatedAt) < this.EXCHANGE_RATE_CACHE_DURATION) {
+            return this.exchangeRate;
+        }
+
+        try {
+            // Priority: Twelve Data for Exchange Rates
+            const tdKey = CONFIG.TWELVEDATA_API_KEY;
+            if (tdKey && tdKey !== 'YOUR_TWELVEDATA_API_KEY') {
+                const url = `${this.TWELVE_DATA_BASE_URL}/exchange_rate?symbol=USD/INR&apikey=${tdKey}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.rate) {
+                    this.exchangeRate = parseFloat(data.rate);
+                    this.exchangeRateUpdatedAt = now;
+                    console.log('✅ Exchange rate updated via Twelve Data:', this.exchangeRate);
+                    return this.exchangeRate;
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to fetch exchange rate via Twelve Data:', err);
+        }
+
+        // Fallback to default rate
+        this.exchangeRate = 83.5; // Current INR/USD rate
+        this.exchangeRateUpdatedAt = now;
+        return this.exchangeRate;
+    }
+
+    /**
+     * Check if we should make a real API call or use cached data
+     * Limits expensive APIs to 1-2 calls per day
+     */
+    static shouldFetchFromAPI(apiName, symbol = '') {
+        const now = Date.now();
+        const cacheKey = symbol ? `${apiName}_${symbol}` : apiName;
+        const lastCall = this.apiCallCache[cacheKey];
+
+        if (!lastCall || (now - lastCall) >= this.API_CACHE_DURATION) {
+            this.apiCallCache[cacheKey] = now;
+            console.log(`📍 ${cacheKey}: Making API call (last call: ${lastCall ? new Date(lastCall).toLocaleString() : 'never'})`);
+            return true;
+        }
+
+        const timeSinceLastCall = ((now - lastCall) / (1000 * 60)).toFixed(1); // in minutes
+        console.log(`⏱️ ${cacheKey}: Skipping API call (used ${timeSinceLastCall} min ago, wait ${((this.API_CACHE_DURATION - (now - lastCall)) / (1000 * 60)).toFixed(1)}+ min)`);
+        return false;
+    }
+
+    /**
+     * Format gold price for UI (per 10g)
+     */
+    static formatGoldPrice(pricePerGram) {
+        return parseFloat((pricePerGram * 10).toFixed(2));
+    }
+
+    /**
+     * Format silver price for UI (per 1kg)
+     */
+    static formatSilverPrice(pricePerGram) {
+        return parseFloat((pricePerGram * 1000).toFixed(2));
+    }
+
+    /**
+     * Sync Market Data
      */
     static async syncMarketData(uid, holdings) {
         if (!uid) return;
 
-        const symbols = new Set(['GOLD', 'SILVER', 'RELIANCE.BSE', 'TCS.BSE']); // Defaults
+        const symbols = new Set(['GOLD', 'SILVER', 'RELIANCE.BSE', 'TCS.BSE']);
         if (holdings) {
             holdings.forEach(h => {
                 if (h.type === 'STOCK' || h.type === 'COMMODITY') symbols.add(h.symbol);
             });
         }
 
-        console.log('[Backend Simulation] Syncing market data for:', [...symbols]);
-
+        console.log('[Backend] Syncing market data for:', [...symbols]);
         const updates = {};
 
         for (const symbol of symbols) {
             try {
-                // 1. Fetch Real-time Quote (Finnhub)
-                const quoteData = await this.fetchQuote(symbol);
-
-                // 2. Fetch History (Alpha Vantage) - Optimized to not over-fetch
-                // In a real app, we'd check timestamp and only fetch daily. 
-                // For demo, we might fetch if missing or old.
-                // We'll skip history fetch in high-frequency loop to save limits, 
-                // relying on a separate trigger or just initial load logic if needed.
-                // For now, let's include a lightweight check or just fetch quote.
+                let quoteData;
+                if (symbol === 'GOLD' || symbol === 'SILVER') {
+                    quoteData = await this.fetchCommodityQuote(symbol);
+                } else {
+                    quoteData = await this.fetchStockQuote(symbol);
+                }
 
                 updates[symbol] = {
                     ...quoteData,
@@ -56,54 +134,280 @@ export class PriceService {
                     updatedAt: new Date().toISOString()
                 };
 
+                if (quoteData.isLive) this.cachePriceData(symbol, quoteData);
+
             } catch (err) {
-                console.warn(`[Backend Simulation] Error syncing ${symbol}:`, err);
+                console.warn(`[Backend] Error syncing ${symbol}:`, err);
             }
         }
 
-        // Batch write to Firestore
-        // In a real backend, we'd use batch. Here we iterate.
         for (const [sym, data] of Object.entries(updates)) {
+            console.log(`💾 [${sym}] Saving to Firestore:`, data);
             await DBService.saveData(uid, 'cachedMarketData', sym, data);
+            console.log(`✅ [${sym}] Saved to Firestore`);
+        }
+
+        // Generate portfolio history
+        if (holdings && holdings.length > 0) {
+            await this.generatePortfolioHistory(uid, holdings, updates);
         }
 
         return updates;
     }
 
     /**
-     * Fetches real-time quote from Finnhub.
+     * Fetch Commodity Quote (Gold/Silver)
+     * GoldAPI returns INR prices per troy ounce (troy oz)
+     * We convert to ₹/gram for internal storage
+     * ⚠️ LIMITED TO 1-2 CALLS PER DAY to conserve API quota
+     */
+    static async fetchCommodityQuote(symbol) {
+        console.log(`🔍 [${symbol}] Starting fetchCommodityQuote...`);
+        const apiKey = CONFIG.GOLD_API_KEY;
+        const metal = this.SYMBOL_MAP[symbol] ? this.SYMBOL_MAP[symbol].goldapi : symbol;
+        console.log(`🔍 [${symbol}] Mapped to GoldAPI symbol: ${metal}`);
+
+        if (!apiKey || apiKey === 'YOUR_GOLD_API_KEY') {
+            console.warn(`⚠️ GoldAPI key missing for ${symbol}. Using cached price.`);
+            return { ...this.lastKnownPrices[symbol], isLive: false };
+        }
+
+        // ⏰ Check if we should call the API (max 1-2 times per day per symbol)
+        if (!this.shouldFetchFromAPI('GoldAPI', symbol)) {
+            console.log(`💾 [${symbol}] Using cached price (within 12-hour window)`);
+            return { ...this.lastKnownPrices[symbol], isLive: false };
+        }
+
+        try {
+            // GoldAPI provides INR price per troy ounce
+            const url = `${this.GOLD_API_BASE_URL}/${metal}/INR`;
+            console.log(`🌐 [${symbol}] Calling GoldAPI: ${url}`);
+            const response = await fetch(url, {
+                headers: { 'x-access-token': apiKey, 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) throw new Error(`GoldAPI status: ${response.status}`);
+            const data = await response.json();
+            console.log(`✅ [${symbol}] GoldAPI Response:`, data);
+
+            // Convert troy ounce to gram: price_per_troy_oz / 31.1035 = price_per_gram
+            const TROY_OZ_TO_GRAM = 31.1035;
+            const pricePerGram = data.price / TROY_OZ_TO_GRAM;
+            const changePerGram = data.ch / TROY_OZ_TO_GRAM;
+            const prevClosePerGram = data.prev_close_price / TROY_OZ_TO_GRAM;
+
+            console.log(`✅ ${symbol}: ${data.price.toFixed(2)}₹/troy oz → ${pricePerGram.toFixed(2)}₹/gram`);
+
+            return {
+                price: parseFloat(pricePerGram.toFixed(2)),
+                change: parseFloat(changePerGram.toFixed(2)),
+                changePercent: data.chp.toFixed(2) + '%',
+                prevClose: parseFloat(prevClosePerGram.toFixed(2)),
+                high: data.high_price ? (data.high_price / TROY_OZ_TO_GRAM).toFixed(2) : null,
+                low: data.low_price ? (data.low_price / TROY_OZ_TO_GRAM).toFixed(2) : null,
+                isLive: true,
+                source: 'GoldAPI.io'
+            };
+        } catch (err) {
+            console.error(`❌ [${symbol}] GoldAPI error:`, err);
+            console.log(`⚠️ [${symbol}] Falling back to alternative source...`);
+            return this.fetchQuote(symbol); // Fallback
+        }
+    }
+
+    /**
+     * Fetch Stock Quote with Multi-API Fallback
+     * ⚠️ Twelve Data LIMITED TO 1-2 CALLS PER DAY
+     */
+    static async fetchStockQuote(symbol) {
+        // 1. Try Yahoo Finance (RapidAPI) - Best for India (no daily limit)
+        const yahooData = await this.fetchYahooQuote(symbol);
+        if (yahooData && yahooData.isLive) return yahooData;
+
+        // 2. Try Twelve Data (LIMITED: only 1-2 calls per day)
+        const twelveData = await this.fetchTwelveDataQuote(symbol);
+        if (twelveData && twelveData.isLive) return twelveData;
+
+        // 3. Fallback to Finnhub (Original logic)
+        return this.fetchQuote(symbol);
+    }
+
+    /**
+     * Yahoo Finance RapidAPI Fetch
+     */
+    static async fetchYahooQuote(symbol) {
+        const apiKey = CONFIG.RAPIDAPI_KEY;
+        if (!apiKey || apiKey === 'YOUR_RAPIDAPI_KEY') return null;
+
+        const mapped = this.SYMBOL_MAP[symbol] ? this.SYMBOL_MAP[symbol].yahoo : symbol;
+
+        try {
+            const url = `${this.RAPID_YAHOO_BASE_URL}?ticker=${mapped}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'x-rapidapi-key': apiKey,
+                    'x-rapidapi-host': 'yahoo-finance15.p.rapidapi.com'
+                }
+            });
+
+            if (!response.ok) return null;
+            const data = await response.json();
+            const quote = data.body && data.body[0];
+
+            if (!quote) return null;
+
+            return {
+                price: parseFloat(quote.regularMarketPrice.toFixed(2)),
+                change: parseFloat(quote.regularMarketChange.toFixed(2)),
+                changePercent: quote.regularMarketChangePercent.toFixed(2) + '%',
+                prevClose: parseFloat(quote.regularMarketPreviousClose.toFixed(2)),
+                high: quote.regularMarketDayHigh,
+                low: quote.regularMarketDayLow,
+                isLive: true,
+                source: 'Yahoo Finance'
+            };
+        } catch (err) {
+            console.warn('Yahoo Finance API failed:', err);
+            return null;
+        }
+    }
+
+    /**
+     * Twelve Data Fetch
+     * ⚠️ LIMITED TO 1-2 CALLS PER DAY to conserve API quota
+     */
+    static async fetchTwelveDataQuote(symbol) {
+        const apiKey = CONFIG.TWELVEDATA_API_KEY;
+        if (!apiKey || apiKey === 'YOUR_TWELVEDATA_API_KEY') return null;
+
+        // ⏰ Check if we should call the API (max 1-2 times per day per symbol)
+        if (!this.shouldFetchFromAPI('TwelveData', symbol)) {
+            console.log(`💾 Using cached quote for ${symbol} from Twelve Data`);
+            return null; // Skip this API call, let fallback handle it
+        }
+
+        const mapped = this.SYMBOL_MAP[symbol] ? this.SYMBOL_MAP[symbol].twelvedata : symbol;
+
+        try {
+            const url = `${this.TWELVE_DATA_BASE_URL}/quote?symbol=${mapped}&apikey=${apiKey}&country=India`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (!data || data.status === 'error') return null;
+
+            return {
+                price: parseFloat(parseFloat(data.close).toFixed(2)),
+                change: parseFloat(parseFloat(data.change).toFixed(2)),
+                changePercent: parseFloat(data.percent_change).toFixed(2) + '%',
+                prevClose: parseFloat(parseFloat(data.previous_close).toFixed(2)),
+                high: data.high,
+                low: data.low,
+                isLive: true,
+                source: 'Twelve Data'
+            };
+        } catch (err) {
+            console.warn('Twelve Data API failed:', err);
+            return null;
+        }
+    }
+
+    /**
+     * Original Finnhub Fetch (Tertiary Fallback)
      */
     static async fetchQuote(symbol) {
         const apiKey = CONFIG.FINNHUB_API_KEY;
         const mapped = this.SYMBOL_MAP[symbol] ? this.SYMBOL_MAP[symbol].finnhub : symbol;
 
         if (!apiKey || apiKey === 'YOUR_FINNHUB_KEY') {
-            console.warn('Finnhub API key missing. Using mock.');
+            console.warn('⚠️ Finnhub API key missing. Using mock data.');
             return this.getMockQuote(symbol);
         }
 
-        // Finnhub Quote Endpoint
         const url = `${this.FINNHUB_BASE_URL}/quote?symbol=${mapped}&token=${apiKey}`;
 
         try {
             const response = await fetch(url);
-            if (!response.ok) throw new Error(`Finnhub status: ${response.status}`);
+            if (!response.ok) throw new Error(`Status: ${response.status}`);
             const data = await response.json();
 
-            // Finnhub response: { c: current, d: change, dp: percent, h: high, l: low, o: open, pc: prev_close }
-            if (data.c === 0 && data.pc === 0) throw new Error("Invalid symbol or no data");
+            if (data.c === 0 && data.pc === 0) return this.getMockQuote(symbol);
+
+            let price = parseFloat(data.c);
+            let prevClose = parseFloat(data.pc);
+            let change = parseFloat(data.d);
+            const exchangeRate = await this.getExchangeRate();
+
+            if (symbol === 'GOLD' || symbol === 'SILVER') {
+                const TROY_OZ_TO_GRAM = 31.1035;
+                price = (price * exchangeRate) / TROY_OZ_TO_GRAM;
+                prevClose = (prevClose * exchangeRate) / TROY_OZ_TO_GRAM;
+                change = (change * exchangeRate) / TROY_OZ_TO_GRAM;
+            }
 
             return {
-                price: parseFloat(data.c),
-                change: parseFloat(data.d),
+                price: parseFloat(price.toFixed(2)),
+                change: parseFloat(change.toFixed(2)),
                 changePercent: parseFloat(data.dp).toFixed(2) + '%',
-                prevClose: parseFloat(data.pc),
-                high: data.h,
-                low: data.l,
+                prevClose: parseFloat(prevClose.toFixed(2)),
+                isLive: true,
+                source: 'Finnhub'
             };
         } catch (error) {
-            console.error(`Finnhub error for ${symbol}:`, error);
+            console.error(`❌ Finnhub error for ${symbol}:`, error.message);
             return this.getMockQuote(symbol);
+        }
+    }
+
+    /**
+     * Generate Portfolio History Curve
+     */
+    static async generatePortfolioHistory(uid, holdings, updates) {
+        let portfolioValue = 0;
+        let portfolioDayChange = 0;
+
+        holdings.forEach(h => {
+            const priceData = updates[h.symbol] || {};
+            const currentPrice = priceData.price || h.avgPrice || 0;
+            const prevClose = priceData.prevClose || h.avgPrice || 0;
+
+            portfolioValue += currentPrice * h.quantity;
+            portfolioDayChange += (currentPrice - prevClose) * h.quantity;
+        });
+
+        const historyPoints = [];
+        const now = new Date();
+        const endTime = now.getTime();
+        const startTime = endTime - (12 * 60 * 60 * 1000);
+
+        for (let i = 0; i <= 72; i++) {
+            const time = startTime + (i * 10 * 60 * 1000);
+            const trend = (portfolioDayChange / 72) * i;
+            const volatility = portfolioValue * 0.002;
+            const noise = (Math.random() - 0.5) * volatility;
+
+            let pointValue = (portfolioValue - portfolioDayChange) + trend + noise;
+            if (i === 72) pointValue = portfolioValue;
+
+            historyPoints.push({ x: time, y: parseFloat(pointValue.toFixed(2)) });
+        }
+
+        await DBService.saveData(uid, 'cachedMarketData', 'portfolioHistory', { history: historyPoints });
+    }
+
+    /**
+     * Update cached price for a symbol 
+     */
+    static cachePriceData(symbol, priceData) {
+        if (priceData && priceData.price) {
+            this.lastKnownPrices[symbol] = {
+                price: priceData.price,
+                change: priceData.change,
+                changePercent: priceData.changePercent,
+                prevClose: priceData.prevClose,
+                source: priceData.source,
+                isLive: true
+            };
         }
     }
 
@@ -158,19 +462,26 @@ export class PriceService {
     }
 
     static getMockQuote(symbol) {
+        // Return cached last-known real prices (realistic market rates - no random volatility)
+        if (this.lastKnownPrices[symbol]) {
+            return { ...this.lastKnownPrices[symbol], isLive: false };
+        }
+
+        // Realistic Indian market prices (per unit)
         const mocks = {
-            'GOLD': 62500,
-            'SILVER': 75000,
             'RELIANCE.BSE': 2950,
-            'TCS.BSE': 4100
+            'TCS.BSE': 4100,
+            'INFY.BSE': 4200,
+            'HDFCBANK.BSE': 1550
         };
         const base = mocks[symbol] || 1000;
-        const price = base + (Math.random() - 0.5) * 10;
+
         return {
-            price: price,
-            change: (Math.random() * 20).toFixed(2),
-            changePercent: (Math.random() * 2).toFixed(2) + '%',
-            prevClose: base
+            price: parseFloat(base.toFixed(2)),
+            change: 0,
+            changePercent: '0.00%',
+            prevClose: base,
+            isLive: false, // Mark as mock/cached data
         };
     }
 
@@ -192,5 +503,12 @@ export class PriceService {
             price = close;
         }
         return data;
+    }
+
+    /**
+     * Get API status string
+     */
+    static getAPIStatus(isLive) {
+        return isLive ? '🟢 Live Data' : '🟡 Cached Data';
     }
 }

@@ -3,6 +3,7 @@ import { AuthService } from './js/auth-service.js';
 import { DBService } from './js/db-service.js';
 import { AIService } from './js/ai-service.js';
 import { FinancialEngine } from './js/financial-engine.js';
+import { NotificationService } from './js/notification-service.js';
 import { createDonutChart, createLineChart, createTrajectoryChart, destroyChart } from './js/chart-utils.js';
 import { calculateFinanceStats, analyzeSpendingByCategory, getSpendingTrend, calculateBudgetTrajectory } from './js/analytics.js';
 
@@ -70,6 +71,41 @@ categorySelect.addEventListener('change', function () {
   });
 });
 
+// Preserve original expense options so we can restore when switching modes
+const originalCategoryOptions = categorySelect ? categorySelect.innerHTML : '';
+const originalSubCategoryOptions = subCategorySelect ? subCategorySelect.innerHTML : '';
+
+// Income categories & subcategories mapping
+const incomeCategoryMap = {
+  'Salary': ['Salary'],
+  'Business': ['Sales', 'Freelance', 'Consulting'],
+  'Investment Income': ['Dividends', 'Interest', 'Capital Gains'],
+  'Gifts': ['Family', 'Friends', 'Other'],
+  'Other Income': ['Miscellaneous']
+};
+
+function populateCategoriesForIncome() {
+  if (!categorySelect || !subCategorySelect) return;
+  // build category options
+  categorySelect.innerHTML = '<option value="">Select Income Category</option>' +
+    Object.keys(incomeCategoryMap).map(k => `<option value="${k}">${k}</option>`).join('\n');
+
+  // build subcategory options with data-category attributes
+  let subHtml = '<option value="">Select Sub Category</option>';
+  Object.keys(incomeCategoryMap).forEach(cat => {
+    incomeCategoryMap[cat].forEach(sub => {
+      subHtml += `<option value="${sub}" data-category="${cat}">${sub}</option>`;
+    });
+  });
+  subCategorySelect.innerHTML = subHtml;
+}
+
+function restoreExpenseCategories() {
+  if (!categorySelect || !subCategorySelect) return;
+  categorySelect.innerHTML = originalCategoryOptions;
+  subCategorySelect.innerHTML = originalSubCategoryOptions;
+}
+
 AuthService.onUserChange((user) => {
   currentUser = user;
   if (user) {
@@ -78,6 +114,18 @@ AuthService.onUserChange((user) => {
     if (userName) userName.textContent = user.displayName;
     if (userEmail) userEmail.textContent = user.email;
     if (userPhoto) userPhoto.src = user.photoURL;
+    
+    // 🔔 Request notification permission early (before any alerts are triggered)
+    if (NotificationService.isSupported() && Notification.permission === 'default') {
+      NotificationService.requestPermission()
+        .then(permission => {
+          console.log('📢 Notification permission:', permission);
+          if (permission === 'granted') {
+            NotificationService.show('Notifications Enabled', 'You\'ll receive alerts about your spending and investments.');
+          }
+        })
+        .catch(err => console.warn('⚠️ Notification permission request failed:', err));
+    }
   } else {
     if (userInfoSection) userInfoSection.classList.add('hidden');
     if (loggedOutView) loggedOutView.classList.remove('hidden');
@@ -107,6 +155,7 @@ AuthService.onUserChange((user) => {
     renderAnalytics();
     renderCharts();
     updateAISmartDashboard(state, risks, behavior);
+    processProactiveAlerts(finances, monthlyBudget);
   });
 
   DBService.subscribe(user?.uid, 'monthlyBudget', (data) => {
@@ -364,8 +413,8 @@ form.onsubmit = async (e) => {
     return;
   }
 
-  if (type === 'expense' && (!category || !subCategory)) {
-    alert('Please select category and sub-category for expenses');
+  if ((!category || !subCategory)) {
+    alert('Please select category and sub-category');
     return;
   }
 
@@ -376,9 +425,10 @@ form.onsubmit = async (e) => {
     amount,
     type,
     dateISO,
-    category: type === 'expense' ? category : '',
-    subCategory: type === 'expense' ? subCategory : '',
-    mode: type === 'expense' ? mode : ''
+    category: category,
+    subCategory: subCategory,
+    mode: mode,
+    timestamp: new Date().toISOString() // Added for Behavioral Engine (Late Night detection)
   };
 
   await DBService.saveData(currentUser?.uid, 'finances', id, expenseData);
@@ -392,7 +442,35 @@ form.onsubmit = async (e) => {
 
   // Show success message
   alert('Entry added successfully!');
+
+  // Request notification permission on first interaction
+  NotificationService.requestPermission();
 };
+
+function processProactiveAlerts(finances, budget) {
+  if (!budget) return;
+
+  const alerts = FinancialEngine.getAlerts(finances, budget);
+
+  alerts.forEach(alert => {
+    // Check if this alert was already shown recently to avoid spam (Simple session-based deduplication)
+    const alertKey = `last_alert_${alert.type}_${alert.message.length}`;
+    const lastShown = sessionStorage.getItem(alertKey);
+    const now = Date.now();
+
+    // Only show the same alert once every 2 hours in a session
+    if (!lastShown || (now - parseInt(lastShown)) > (120 * 60 * 1000)) {
+      NotificationService.show(alert.title, alert.message);
+      sessionStorage.setItem(alertKey, now.toString());
+
+      // Also inject into AI chat if open
+      const chatBody = document.getElementById('ai-chat-body');
+      if (chatBody) {
+        AIService.appendMessage(chatBody, `<strong>${alert.title}</strong><br>${alert.message}`, 'ai');
+      }
+    }
+  });
+}
 
 
 if (budgetSave) {
@@ -449,12 +527,16 @@ toggleExpense.onclick = () => {
   toggleIncome.classList.remove('active');
   const title = document.getElementById('entry-form-title');
   if (title) title.innerHTML = '➕ Add New Expense';
+  // restore expense categories
+  restoreExpenseCategories();
 };
 toggleIncome.onclick = () => {
   toggleIncome.classList.add('active');
   toggleExpense.classList.remove('active');
   const title = document.getElementById('entry-form-title');
   if (title) title.innerHTML = '💰 Add New Income';
+  // populate income-specific categories
+  populateCategoriesForIncome();
 };
 
 // NEW AI CHAT INITIALIZATION

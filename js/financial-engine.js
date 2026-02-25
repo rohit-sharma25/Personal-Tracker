@@ -97,11 +97,96 @@ export class FinancialEngine {
         const avgDaily = recentExpenses.reduce((s, f) => s + f.amount, 0) / 7;
         const isAbnormalVelocity = todayPrice > (avgDaily * 2) && todayPrice > 1000;
 
+        // 4. WEEKEND SPIKE DETECTION
+        // Compare Sat/Sun average vs Mon-Fri average
+        const weekends = recentExpenses.filter(f => {
+            const day = new Date(f.dateISO).getDay(); // 0=Sun, 6=Sat
+            return day === 0 || day === 6;
+        });
+        const weekdays = recentExpenses.filter(f => {
+            const day = new Date(f.dateISO).getDay();
+            return day >= 1 && day <= 5;
+        });
+
+        const avgWeekend = weekends.reduce((s, f) => s + f.amount, 0) / (weekends.length || 1);
+        const avgWeekday = weekdays.reduce((s, f) => s + f.amount, 0) / (weekdays.length || 1);
+
+        // Flag if weekend spending is > 1.5x weekday spending AND significant amount (> 2000)
+        const isWeekendSpike = (avgWeekend > (avgWeekday * 1.5)) && (avgWeekend > 2000);
+
+        // 5. LATE NIGHT SPENDING (10 PM - 5 AM)
+        const lateNightCount = recentExpenses.filter(f => {
+            if (!f.timestamp) return false; // Legacy data check
+            const hour = new Date(f.timestamp).getHours();
+            return hour >= 22 || hour <= 5; // 10 PM to 5 AM
+        }).length;
+
+        const isLateNightSpike = lateNightCount >= 2; // More than 2 late night orders in 7 days
+
         return {
             categorySpikes: spikes,
             impulsePattern: hasImpulsePattern,
             abnormalVelocity: isAbnormalVelocity,
+            weekendSpike: isWeekendSpike,
+            lateNightSpike: isLateNightSpike,
             recentFrequency: recentExpenses.length
         };
+    }
+
+    /**
+     * Identifies urgent alerts that require user notification.
+     */
+    static getAlerts(finances, monthlyBudget) {
+        const state = this.calculateState(finances, monthlyBudget);
+        const risks = this.runRiskEngine(state, monthlyBudget);
+        const behavior = this.runBehaviorModel(finances);
+
+        const alerts = [];
+
+        // 1. Budget Alerts
+        if (monthlyBudget > 0) {
+            const utilization = (state.monthExpenses / monthlyBudget);
+            if (utilization >= 0.9) {
+                alerts.push({
+                    type: 'budget_critical',
+                    title: '🛑 Critical Budget Alert',
+                    message: `You have exhausted ${Math.round(utilization * 100)}% of your monthly budget!`
+                });
+            } else if (utilization >= 0.75) {
+                alerts.push({
+                    type: 'budget_warning',
+                    title: '⚠️ Budget Warning',
+                    message: `You have used ${Math.round(utilization * 100)}% of your budget.`
+                });
+            }
+        }
+
+        // 2. Velocity Alerts
+        if (risks.overspendRisk > 40) {
+            alerts.push({
+                type: 'velocity_spike',
+                title: '⚡ Spending Spike',
+                message: 'Your spending velocity is significantly higher than usual for this time of month.'
+            });
+        }
+
+        // 3. Behavioral Alerts
+        if (behavior.lateNightSpike) {
+            alerts.push({
+                type: 'behavior_anomaly',
+                title: '🌙 Late Night Spending',
+                message: 'We noticed multiple late-night transactions. Consider setting a curfew for shopping apps!'
+            });
+        }
+
+        if (behavior.abnormalVelocity) {
+            alerts.push({
+                type: 'velocity_spike',
+                title: '📈 Unusual Activity',
+                message: 'Your spending today is more than double your daily average.'
+            });
+        }
+
+        return alerts;
     }
 }

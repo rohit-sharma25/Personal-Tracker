@@ -1,56 +1,166 @@
 import { CONFIG } from './config.js';
 
 export class AIService {
-    static async chat(message, context) {
-        if (!CONFIG.GROQ_API_KEY) {
-            return "Please add your Groq API Key in `js/config.js` to enable the AI assistant.";
+    /**
+     * Smart Key Rotation System
+     */
+    static get majesticKey() {
+        if (!CONFIG.GROQ_API_KEYS || CONFIG.GROQ_API_KEYS.length === 0) {
+            // Fallback for backward compatibility
+            return CONFIG.GROQ_API_KEY || null;
         }
+        // Random Load Balancing
+        const randomIndex = Math.floor(Math.random() * CONFIG.GROQ_API_KEYS.length);
+        return CONFIG.GROQ_API_KEYS[randomIndex];
+    }
 
-        const { finances = [], budget = 0, engineState = {} } = context;
-        const { state = {}, risks = {}, behavior = {} } = engineState;
+    /**
+     * Chat with Auto-Retry (Failover)
+     */
+    static async chatWithRetry(payload, attempt = 0) {
+        if (attempt > 3) throw new Error("All API keys exhausted or service down.");
 
-        const systemPrompt = `
-            You are "Expensify AI", a premium, friendly financial advisor.
-            
-            CRITICAL DASHBOARD FACTS (Verify all answers against these):
-            - Monthly Budget: ₹${budget.toLocaleString('en-IN')}
-            - Current Spending: ₹${(state.monthExpenses || 0).toLocaleString('en-IN')}
-            - Daily Spending (Burn Rate): ₹${(state.burnRatePerDay || 0).toLocaleString('en-IN')}
-            - Health Score: ${risks.riskScore || 0}/100
-            - Risk Level: ${state.safetyLevel || 'Stable'}
-            - Behavior Pattern: ${behavior.categorySpikes?.length > 0 ? behavior.categorySpikes.join(', ') : 'Stable'}
-            
-            Instructions:
-            - You MUST use the values above when asked about finances. Never calculate your own totals.
-            - Keep responses concise (max 3-4 sentences).
-            - Use emojis and markdown (**bold**).
-            - If asked "Why is my health score X?", explain based on risk factors like overspending velocity.
-        `;
+        const currentKey = this.majesticKey;
+        if (!currentKey) throw new Error("No API Key configured.");
 
         try {
             const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${CONFIG.GROQ_API_KEY}`,
+                    "Authorization": `Bearer ${currentKey}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: message }
-                    ],
-                    temperature: 0.7,
-                    max_tokens: 500
-                })
+                body: JSON.stringify(payload)
             });
 
             if (!response.ok) {
+                // If Rate Limit (429) or Auth Error (401), retry
+                if (response.status === 429 || response.status === 401) {
+                    console.warn(`Key failed (${response.status}). Retrying with fresh key...`);
+                    return this.chatWithRetry(payload, attempt + 1);
+                }
                 const err = await response.json();
                 throw new Error(err.error?.message || "Groq API Error");
             }
 
-            const data = await response.json();
+            return await response.json();
+        } catch (error) {
+            console.warn("Retrying due to network/API error:", error);
+            // Simple exponential backoff could be added here, but for now just retry
+            return this.chatWithRetry(payload, attempt + 1);
+        }
+    }
+
+    static async chat(message, context) {
+        if (!this.majesticKey) {
+            return "Please add your Groq API Key in `js/config.js` to enable the AI assistant.";
+        }
+
+        // Detect if this is investment context or expense context
+        const isInvestmentContext = context.portfolioMetrics || context.investments;
+
+        let systemPrompt = "";
+
+        if (isInvestmentContext) {
+            // Investment Portfolio Context
+            const {
+                portfolioMetrics = {},
+                savingsMetrics = {},
+                totalWealth = 0,
+                totalGain = 0,
+                gainPercentage = 0,
+                investments = [],
+                sipPlans = [],
+                fdAccounts = [],
+                rdAccounts = []
+            } = context;
+
+            const holdingsCount = investments.length;
+            const totalSipCount = sipPlans.length;
+            const totalFdCount = fdAccounts.length;
+            const totalRdCount = rdAccounts.length;
+
+            // Format holdings for AI
+            const holdingsList = investments.map(h => {
+                const priceData = context.prices ? context.prices[h.symbol] : null;
+                const price = (priceData && typeof priceData === 'object' ? priceData.price : priceData) || h.avgPrice || 0;
+                const gain = (price - h.avgPrice) * h.quantity;
+                return `- ${h.name || h.symbol}: ${h.quantity} units @ ₹${h.avgPrice.toLocaleString()} (Current: ₹${price.toLocaleString()}, Gain: ₹${Math.round(gain).toLocaleString()})`;
+            }).join('\n');
+
+            const sipList = sipPlans.map(s => `- SIP ${s.name}: ₹${s.monthlyAmount.toLocaleString()}/mo (Total Saved: ₹${s.currentInvested.toLocaleString()})`).join('\n');
+
+            systemPrompt = `
+                You are "GROWW Investment Advisor", a premium and friendly investment portfolio consultant.
+                
+                CRITICAL PORTFOLIO FACTS:
+                - Total Portfolio Value: ₹${Math.round(totalWealth).toLocaleString('en-IN')}
+                - Total Gains/Losses: ${totalGain >= 0 ? '+' : ''}₹${Math.round(totalGain).toLocaleString('en-IN')} (${gainPercentage.toFixed(2)}%)
+                - Daily Returns: ₹${Math.round(portfolioMetrics.dailyGain || 0).toLocaleString('en-IN')}
+                
+                DETAILED HOLDINGS:
+                ${holdingsList || 'No stocks/commodities yet.'}
+                
+                ACTIVE SAVINGS/DEPOSITS:
+                ${sipList || 'No active SIPs.'}
+                Fds: ${totalFdCount}, Rds: ${totalRdCount}
+                
+                Your Responsibilities:
+                1. Provide portfolio analysis based on exact data above.
+                2. If asked about a specific stock (e.g., Reliance), use the data from DETAILED HOLDINGS.
+                3. Suggest rebalancing if portfolio is too concentrated.
+                4. Recommend diversification with specific asset classes.
+                
+                Instructions:
+                - Keep responses concise (max 4-5 sentences).
+                - Use emojis and markdown (**bold**).
+                - Always reference actual values from the lists above when discussing specific assets.
+                - Be encouraging but realistic about market conditions.
+            `;
+        } else {
+            // Expense Tracking Context (Original)
+            const { finances = [], budget = 0, engineState = {} } = context;
+            const { state = {}, risks = {}, behavior = {} } = engineState;
+
+            // Get 10 most recent expenses
+            const recentExpenses = finances
+                .filter(f => f.type === 'expense')
+                .sort((a, b) => new Date(b.dateISO) - new Date(a.dateISO))
+                .slice(0, 10)
+                .map(f => `- ${f.dateISO}: ${f.desc} (₹${f.amount}) [${f.category}]`)
+                .join('\n');
+
+            systemPrompt = `
+                You are "Expensify AI", a premium, friendly financial advisor.
+                
+                CRITICAL DASHBOARD FACTS:
+                - Monthly Budget: ₹${budget.toLocaleString('en-IN')}
+                - Current Spending: ₹${(state.monthExpenses || 0).toLocaleString('en-IN')}
+                - Health Score: ${risks.riskScore || 0}/100
+                - Risk Level: ${state.safetyLevel || 'Stable'}
+                
+                RECENT TRANSACTIONS:
+                ${recentExpenses || 'No recent expenses recorded.'}
+                
+                Instructions:
+                - You MUST use the values and transactions above.
+                - If asked about "recent expenses" or "where did I spend money", refer to the RECENT TRANSACTIONS list.
+                - Keep responses concise (max 3-4 sentences).
+                - Use emojis and markdown (**bold**).
+            `;
+        }
+
+        try {
+            const data = await this.chatWithRetry({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: message }
+                ],
+                temperature: 0.7,
+                max_tokens: 500
+            });
+
             let aiText = data.choices[0].message.content;
 
             // Simple Markdown Processing
@@ -127,7 +237,20 @@ export class AIService {
     }
 
     static async generateDashboardInsight(context) {
-        if (!CONFIG.GROQ_API_KEY) return null;
+        if (!this.majesticKey) return null;
+
+        // CACHE CHECK (10 Minutes)
+        const CACHE_KEY = 'expensify_dashboard_insight';
+        const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const { timestamp, data } = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_DURATION) {
+                console.log("[AI] Serving Dashboard Insight from Cache");
+                return data;
+            }
+        }
 
         const { budget, state, risks, behavior } = context;
 
@@ -142,38 +265,42 @@ export class AIService {
             - Risk Score: ${risks.riskScore}/100
             - Behavior: ${behavior.categorySpikes.length > 0 ? 'Spikes in ' + behavior.categorySpikes.join(', ') : 'Stable'}
             - Impulse Pattern: ${behavior.impulsePattern ? 'Detected' : 'None'}
+            - Weekend Spike: ${behavior.weekendSpike ? 'DETECTED (>1.5x weekday avg)' : 'None'}
+            - Late Night Spike: ${behavior.lateNightSpike ? 'DETECTED (>10PM spending)' : 'None'}
             
             Rules:
             1. MAX 20 WORDS.
             2. Be extremely specific and actionable.
             3. No generic advice like "save more".
-            4. Sound like a premium human manager.
+            4. If 'Weekend Spike' is DETECTED, bluntly warn about weekend overspending.
+            5. If 'Late Night Spike' is DETECTED, warn about late-night impulse buys.
+            6. Sound like a premium human manager (slightly strict but helpful).
             
             Example: "Your dining velocity is 2x average. Cut luxury spending by ₹2k this week to stay on track."
+            Example (Weekend): "Weekend spending is 50% higher than weekdays. Limit social outings this Saturday."
+            Example (Late Night): "Late-night orders identified. Avoid shopping apps after 10PM to prevent impulse buys."
         `;
 
         try {
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${CONFIG.GROQ_API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: "Provide manager insight based on the exact context provided." }
-                    ],
-                    temperature: 0.5,
-                    max_tokens: 100
-                })
+            const data = await this.chatWithRetry({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: "Provide manager insight based on the exact context provided." }
+                ],
+                temperature: 0.5,
+                max_tokens: 100
             });
 
-            if (!response.ok) return null;
+            const insight = data.choices[0].message.content.trim();
 
-            const data = await response.json();
-            return data.choices[0].message.content.trim();
+            // SAVE TO CACHE
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                data: insight
+            }));
+
+            return insight;
         } catch (error) {
             console.error("Dashboard AI Error:", error);
             return null;
@@ -181,51 +308,67 @@ export class AIService {
     }
 
     static async generateInvestmentInsight(context) {
-        if (!CONFIG.GROQ_API_KEY) return null;
+        if (!this.majesticKey) return null;
+
+        // CACHE CHECK (1 Hour)
+        const CACHE_KEY = 'expensify_investment_insight';
+        const CACHE_DURATION = 60 * 60 * 1000; // 1 Hour
+
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const { timestamp, data } = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_DURATION) {
+                console.log("[AI] Serving Investment Insight from Cache");
+                return data;
+            }
+        }
 
         const { totalWealth, portfolioGain, diversification, savingsProgress, riskProfile } = context;
 
         const systemPrompt = `
-            You are "Expensify Wealth Strategist", an elite investment advisor.
-            Provide a punchy, professional wealth management insight.
-            
+            You are "Wall Street Analyst", a sharp, high - conviction investment strategist.
+            Your job is to spot GAPS in the portfolio and suggest SPECIFIC assets(Stocks / Gold / MFs).
+
             Context:
-            - Net Wealth: ₹${totalWealth}
-            - Portfolio Gain: ${portfolioGain.toFixed(2)}%
+        - Net Wealth: ₹${totalWealth}
+        - Portfolio Gain: ${portfolioGain.toFixed(2)}%
             - Diversification Score: ${diversification}/100
-            - Savings Progress: ${savingsProgress.toFixed(1)}%
-            - Risk Profile: ${riskProfile}
+                - Risk Profile: ${riskProfile}
             
-            Rules:
-            1. MAX 15 WORDS.
-            2. High-conviction, professional tone.
-            3. Address specific gaps.
-            
-            Example: "Portfolio gain at 8%. Diversification is low—consider rebalancing into Gold to hedge risk."
-        `;
+            Analysis Logic:
+        1. If Diversification < 40: "Portfolio is too concentrated. Buy Nifty 50 Index Fund for stability."
+        2. If Gain < 5 %: "Returns are sluggish. Consider high-growth stocks like Tata Motors or HAL."
+        3. If Risk is 'High': "High risk detected. Hedge with Gold (SGB) or FD."
+        4. If Wealth > 1L and Gold is missing: "Add Gold to your portfolio for recession-proofing."
+
+        Rules:
+        1. MAX 15 - 20 WORDS.
+            2. Be direct.Use names(Nifty 50, Gold, Tata, HDFC).
+            3. No vague advice like "research more".
+
+            Example: "Equity exposure is high. Buy Gold Bees or Sovereign Gold Bonds to hedge against market crash."
+                `;
 
         try {
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${CONFIG.GROQ_API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: "Provide wealth management insight." }
-                    ],
-                    temperature: 0.5,
-                    max_tokens: 100
-                })
+            const data = await this.chatWithRetry({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: "Provide specific investment recommendation." }
+                ],
+                temperature: 0.6,
+                max_tokens: 100
             });
 
-            if (!response.ok) return null;
+            const insight = data.choices[0].message.content.trim();
 
-            const data = await response.json();
-            return data.choices[0].message.content.trim();
+            // SAVE TO CACHE
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                data: insight
+            }));
+
+            return insight;
         } catch (error) {
             console.error("Investment AI Error:", error);
             return null;
