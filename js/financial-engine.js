@@ -9,10 +9,14 @@ export class FinancialEngine {
      */
     static calculateState(finances, monthlyBudget) {
         const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const currentMonth = todayStr.slice(0, 7);
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const currentDay = now.getDate();
+        const year = now.getFullYear();
+        const monthNum = now.getMonth() + 1;
+        const dayNum = now.getDate();
+
+        const todayStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        const currentMonth = `${year}-${String(monthNum).padStart(2, '0')}`;
+        const daysInMonth = new Date(year, monthNum, 0).getDate();
+        const currentDay = dayNum;
 
         const monthExpenses = finances
             .filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth))
@@ -73,7 +77,8 @@ export class FinancialEngine {
         for (let i = 0; i < 7; i++) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            last7Days.push(d.toISOString().slice(0, 10));
+            const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            last7Days.push(dStr);
         }
 
         const recentExpenses = finances.filter(f => f.type === 'expense' && last7Days.includes(f.dateISO));

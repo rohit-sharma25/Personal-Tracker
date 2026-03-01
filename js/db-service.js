@@ -23,6 +23,21 @@ export class DBService {
                 else local.push(data);
 
                 localStorage.setItem(collectionName, JSON.stringify(local));
+
+                // fire a storage event manually so same-tab listeners will update
+                try {
+                    const ev = new StorageEvent('storage', {
+                        key: collectionName,
+                        newValue: JSON.stringify(local),
+                        oldValue: null,
+                        storageArea: localStorage,
+                        url: window.location.href
+                    });
+                    window.dispatchEvent(ev);
+                } catch (e) {
+                    console.warn('Unable to dispatch storage event:', e);
+                }
+
                 return;
             }
             // Ensure data has the ID for consistency
@@ -62,42 +77,73 @@ export class DBService {
                 try {
                     const raw = localStorage.getItem(collectionName);
                     const local = raw ? JSON.parse(raw) : [];
+                    console.log(`📦 Fetched ${collectionName} from localStorage:`, local);
                     return Array.isArray(local) ? local : [];
                 } catch (e) {
+                    console.warn(`⚠️ Error parsing localStorage ${collectionName}:`, e);
                     return [];
                 }
             }
             const q = query(collection(db, `users/${userId}/${collectionName}`));
             const querySnapshot = await getDocs(q);
-            return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            const data = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            console.log(`📦 Fetched ${collectionName} from Firebase:`, data);
+            return data;
         } catch (error) {
-            console.error(`DBService Fetch Error [${collectionName}]:`, error);
+            console.error(`❌ DBService Fetch Error [${collectionName}]:`, error.code || error.message, error);
             return [];
         }
     }
 
     static subscribe(userId, collectionName, callback) {
         if (!userId) {
-            try {
-                const raw = localStorage.getItem(collectionName);
-                const local = raw ? JSON.parse(raw) : [];
-                callback(Array.isArray(local) ? local : []);
-            } catch (e) {
-                callback([]);
-            }
-            return () => { };
+            const getLocal = () => {
+                try {
+                    const raw = localStorage.getItem(collectionName);
+                    const local = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(local) ? local : [];
+                } catch (e) {
+                    console.warn(`⚠️ Error reading localStorage ${collectionName}:`, e);
+                    return [];
+                }
+            };
+
+            const invoke = () => {
+                const data = getLocal();
+                console.log(`🔄 Subscribed to localStorage ${collectionName}:`, data);
+                callback(data);
+            };
+
+            // initial call
+            invoke();
+
+            // listen for storage events (including manual dispatch)
+            const listener = (e) => {
+                if (e.key === collectionName) {
+                    invoke();
+                }
+            };
+            window.addEventListener('storage', listener);
+
+            // return unsubscribe function
+            return () => window.removeEventListener('storage', listener);
         }
 
         try {
             const q = query(collection(db, `users/${userId}/${collectionName}`));
+            console.log(`🔄 Setting up Firestore subscription for ${collectionName}...`);
             return onSnapshot(q, (snapshot) => {
                 const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                console.log(`✅ Subscription update ${collectionName}:`, data);
                 callback(data);
             }, (error) => {
-                console.error(`DBService Subscription Error [${collectionName}]:`, error);
+                console.error(`❌ Firestore Subscription Error [${collectionName}]:`, error.code || error.message, error);
+                // Try to fall back to empty data
+                callback([]);
             });
         } catch (error) {
-            console.error(`DBService Subscription Setup Error [${collectionName}]:`, error);
+            console.error(`❌ DBService Subscription Setup Error [${collectionName}]:`, error.code || error.message, error);
+            callback([]);
             return () => { };
         }
     }

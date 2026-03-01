@@ -6,6 +6,7 @@ import { FinancialEngine } from './js/financial-engine.js';
 import { NotificationService } from './js/notification-service.js';
 import { createDonutChart, createLineChart, createTrajectoryChart, destroyChart } from './js/chart-utils.js';
 import { calculateFinanceStats, analyzeSpendingByCategory, getSpendingTrend, calculateBudgetTrajectory } from './js/analytics.js';
+import { parseSMS } from './js/sms-parser.js';
 
 const TIMEZONE = "Asia/Kolkata";
 const todayStr = () => new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -23,7 +24,6 @@ let trajectoryChart = null;
 let lastAiUpdate = 0;
 let currentEngineState = { state: {}, risks: {}, behavior: {} };
 
-// DOM
 // DOM
 const userName = document.getElementById('user-name');
 const userPhoto = document.getElementById('user-photo');
@@ -53,23 +53,25 @@ const chatSend = document.getElementById('ai-chat-send');
 const chatBody = document.getElementById('ai-chat-body');
 
 // Category change handler - filter sub-categories
-categorySelect.addEventListener('change', function () {
-  const selectedCategory = this.value;
-  const allOptions = subCategorySelect.querySelectorAll('option');
+if (categorySelect) {
+  categorySelect.addEventListener('change', function () {
+    const selectedCategory = this.value;
+    const allOptions = subCategorySelect.querySelectorAll('option');
 
-  // Reset and show placeholder
-  subCategorySelect.value = '';
+    // Reset and show placeholder
+    subCategorySelect.value = '';
 
-  allOptions.forEach(option => {
-    if (option.value === '') {
-      option.style.display = 'block'; // Always show placeholder
-    } else if (option.dataset.category === selectedCategory) {
-      option.style.display = 'block'; // Show matching options
-    } else {
-      option.style.display = 'none'; // Hide non-matching options
-    }
+    allOptions.forEach(option => {
+      if (option.value === '') {
+        option.style.display = 'block'; // Always show placeholder
+      } else if (option.dataset.category === selectedCategory) {
+        option.style.display = 'block'; // Show matching options
+      } else {
+        option.style.display = 'none'; // Hide non-matching options
+      }
+    });
   });
-});
+}
 
 // Preserve original expense options so we can restore when switching modes
 const originalCategoryOptions = categorySelect ? categorySelect.innerHTML : '';
@@ -111,10 +113,12 @@ AuthService.onUserChange((user) => {
   if (user) {
     if (userInfoSection) userInfoSection.classList.remove('hidden');
     if (loggedOutView) loggedOutView.classList.add('hidden');
-    if (userName) userName.textContent = user.displayName;
-    if (userEmail) userEmail.textContent = user.email;
-    if (userPhoto) userPhoto.src = user.photoURL;
-    
+    if (userName) userName.textContent = user.displayName || "Unknown User";
+    if (userEmail) userEmail.textContent = user.email || "";
+    if (userPhoto) {
+      userPhoto.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=5B6CF2&color=fff`;
+    }
+
     // 🔔 Request notification permission early (before any alerts are triggered)
     if (NotificationService.isSupported() && Notification.permission === 'default') {
       NotificationService.requestPermission()
@@ -156,6 +160,7 @@ AuthService.onUserChange((user) => {
     renderCharts();
     updateAISmartDashboard(state, risks, behavior);
     processProactiveAlerts(finances, monthlyBudget);
+    updateHeaderLevel();
   });
 
   DBService.subscribe(user?.uid, 'monthlyBudget', (data) => {
@@ -180,28 +185,33 @@ AuthService.onUserChange((user) => {
     const behavior = FinancialEngine.runBehaviorModel(finances);
     updateAISmartDashboard(state, risks, behavior);
   });
-
 });
 
 let filterCategory = "";
 let searchQuery = "";
 
 // Filter Listeners
-document.getElementById('filter-category').onchange = (e) => {
-  filterCategory = e.target.value;
-  renderFinances();
-};
+const filterCatEl = document.getElementById('filter-category');
+if (filterCatEl) {
+  filterCatEl.onchange = (e) => {
+    filterCategory = e.target.value;
+    renderFinances();
+  };
+}
 
-document.getElementById('search-input').oninput = (e) => {
-  searchQuery = e.target.value.toLowerCase();
-  renderFinances();
-};
+const searchInputEl = document.getElementById('search-input');
+if (searchInputEl) {
+  searchInputEl.oninput = (e) => {
+    searchQuery = e.target.value.toLowerCase();
+    renderFinances();
+  };
+}
 
 function renderFinances() {
   if (!tableBody) return;
   tableBody.innerHTML = "";
 
-  const filtered = finances.filter(f => {
+  const filtered = (finances || []).filter(f => {
     const matchesCategory = !filterCategory || f.category === filterCategory;
     const matchesSearch = !searchQuery || f.desc.toLowerCase().includes(searchQuery) || (f.category && f.category.toLowerCase().includes(searchQuery));
     return matchesCategory && matchesSearch;
@@ -246,9 +256,9 @@ function updateFinanceSummary() {
   const today = todayStr();
   const currentMonth = today.slice(0, 7);
 
-  const todaySpent = finances.filter(f => f.type === 'expense' && f.dateISO === today).reduce((s, f) => s + f.amount, 0);
-  const monthSpent = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth)).reduce((s, f) => s + f.amount, 0);
-  const monthIncome = finances.filter(f => f.type === 'income' && f.dateISO.startsWith(currentMonth)).reduce((s, f) => s + f.amount, 0);
+  const todaySpent = (finances || []).filter(f => f.type === 'expense' && f.dateISO === today).reduce((s, f) => s + f.amount, 0);
+  const monthSpent = (finances || []).filter(f => f.type === 'expense' && f.dateISO.startsWith(currentMonth)).reduce((s, f) => s + f.amount, 0);
+  const monthIncome = (finances || []).filter(f => f.type === 'income' && f.dateISO.startsWith(currentMonth)).reduce((s, f) => s + f.amount, 0);
 
   // Update summary cards
   const todayTotalEl = document.getElementById('today-total');
@@ -282,7 +292,7 @@ function updateBudgetUI() {
     return;
   }
   const month = todayStr().slice(0, 7);
-  const spent = finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(month)).reduce((s, f) => s + f.amount, 0);
+  const spent = (finances || []).filter(f => f.type === 'expense' && f.dateISO.startsWith(month)).reduce((s, f) => s + f.amount, 0);
 
   budgetWarning.classList.remove('hidden');
   if (spent > monthlyBudget) {
@@ -397,55 +407,67 @@ async function updateAISmartDashboard(state, risks, behavior) {
   }
 }
 
-form.onsubmit = async (e) => {
-  e.preventDefault();
-  const desc = descInput.value.trim();
-  const amount = parseFloat(amountInput.value);
-  const type = toggleIncome.classList.contains('active') ? 'income' : 'expense';
-  const category = categorySelect.value;
-  const subCategory = subCategorySelect.value;
-  const mode = document.getElementById('expense-mode').value;
-  const dateInput = document.getElementById('expense-date');
-  const dateISO = dateInput.value || todayStr();
+if (form) {
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const desc = descInput.value.trim();
+    const amount = parseFloat(amountInput.value);
+    const type = toggleIncome.classList.contains('active') ? 'income' : 'expense';
+    const category = categorySelect.value;
+    const subCategory = subCategorySelect.value;
+    const mode = document.getElementById('expense-mode').value;
+    const dateInput = document.getElementById('expense-date');
+    const dateISO = dateInput.value || todayStr();
 
-  if (!desc || isNaN(amount) || amount <= 0) {
-    alert('Please enter valid description and amount');
-    return;
-  }
+    if (!desc || isNaN(amount) || amount <= 0) {
+      alert('Please enter valid description and amount');
+      return;
+    }
 
-  if ((!category || !subCategory)) {
-    alert('Please select category and sub-category');
-    return;
-  }
+    if ((!category || !subCategory)) {
+      alert('Please select category and sub-category');
+      return;
+    }
 
-  const id = crypto.randomUUID();
-  const expenseData = {
-    id,
-    desc,
-    amount,
-    type,
-    dateISO,
-    category: category,
-    subCategory: subCategory,
-    mode: mode,
-    timestamp: new Date().toISOString() // Added for Behavioral Engine (Late Night detection)
+    const id = crypto.randomUUID();
+    const expenseData = {
+      id,
+      desc,
+      amount,
+      type,
+      dateISO,
+      category: category,
+      subCategory: subCategory,
+      mode: mode,
+      timestamp: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}Z`; })()
+    };
+
+    await DBService.saveData(currentUser?.uid, 'finances', id, expenseData);
+
+    // immediately update local cache/UI in case storage event is slow
+    finances.push(expenseData);
+    renderFinances();
+
+    // Gamification: Award 10 XP
+    try {
+      const { GamificationService } = await import('./js/gamification-service.js');
+      await GamificationService.awardPoints(10);
+      updateHeaderLevel();
+    } catch (err) {
+      console.warn("Gamification points not awarded:", err);
+    }
+
+    // Clear form
+    if (descInput) descInput.value = "";
+    if (amountInput) amountInput.value = "";
+    if (categorySelect) categorySelect.value = "";
+    if (subCategorySelect) subCategorySelect.value = "";
+    if (dateInput) dateInput.value = "";
+
+    alert('Entry added successfully!');
+    NotificationService.requestPermission();
   };
-
-  await DBService.saveData(currentUser?.uid, 'finances', id, expenseData);
-
-  // Clear form
-  if (descInput) descInput.value = "";
-  if (amountInput) amountInput.value = "";
-  if (categorySelect) categorySelect.value = "";
-  if (subCategorySelect) subCategorySelect.value = "";
-  if (dateInput) dateInput.value = "";
-
-  // Show success message
-  alert('Entry added successfully!');
-
-  // Request notification permission on first interaction
-  NotificationService.requestPermission();
-};
+}
 
 function processProactiveAlerts(finances, budget) {
   if (!budget) return;
@@ -453,17 +475,14 @@ function processProactiveAlerts(finances, budget) {
   const alerts = FinancialEngine.getAlerts(finances, budget);
 
   alerts.forEach(alert => {
-    // Check if this alert was already shown recently to avoid spam (Simple session-based deduplication)
     const alertKey = `last_alert_${alert.type}_${alert.message.length}`;
     const lastShown = sessionStorage.getItem(alertKey);
     const now = Date.now();
 
-    // Only show the same alert once every 2 hours in a session
     if (!lastShown || (now - parseInt(lastShown)) > (120 * 60 * 1000)) {
       NotificationService.show(alert.title, alert.message);
       sessionStorage.setItem(alertKey, now.toString());
 
-      // Also inject into AI chat if open
       const chatBody = document.getElementById('ai-chat-body');
       if (chatBody) {
         AIService.appendMessage(chatBody, `<strong>${alert.title}</strong><br>${alert.message}`, 'ai');
@@ -471,7 +490,6 @@ function processProactiveAlerts(finances, budget) {
     }
   });
 }
-
 
 if (budgetSave) {
   budgetSave.onclick = async () => {
@@ -520,24 +538,24 @@ if (budgetSave) {
   };
 }
 
-
-
-toggleExpense.onclick = () => {
-  toggleExpense.classList.add('active');
-  toggleIncome.classList.remove('active');
-  const title = document.getElementById('entry-form-title');
-  if (title) title.innerHTML = '➕ Add New Expense';
-  // restore expense categories
-  restoreExpenseCategories();
-};
-toggleIncome.onclick = () => {
-  toggleIncome.classList.add('active');
-  toggleExpense.classList.remove('active');
-  const title = document.getElementById('entry-form-title');
-  if (title) title.innerHTML = '💰 Add New Income';
-  // populate income-specific categories
-  populateCategoriesForIncome();
-};
+if (toggleExpense) {
+  toggleExpense.onclick = () => {
+    toggleExpense.classList.add('active');
+    toggleIncome.classList.remove('active');
+    const title = document.getElementById('entry-form-title');
+    if (title) title.innerHTML = '➕ Add New Expense';
+    restoreExpenseCategories();
+  };
+}
+if (toggleIncome) {
+  toggleIncome.onclick = () => {
+    toggleIncome.classList.add('active');
+    toggleExpense.classList.remove('active');
+    const title = document.getElementById('entry-form-title');
+    if (title) title.innerHTML = '💰 Add New Income';
+    populateCategoriesForIncome();
+  };
+}
 
 // NEW AI CHAT INITIALIZATION
 AIService.init({
@@ -553,8 +571,7 @@ AIService.init({
   engineState: currentEngineState
 }));
 
-
-// Calendar History (Simplified for v2)
+// Calendar History
 document.getElementById('open-calendar')?.addEventListener('click', () => {
   document.getElementById('calendar-overlay')?.classList.remove('hidden');
   renderCalendar();
@@ -603,9 +620,130 @@ document.getElementById('cal-next')?.addEventListener('click', () => {
   renderCalendar();
 });
 
+
+// Magic SMS Paste Logic
+const processSmsBtn = document.getElementById('sms-process-btn');
+const smsPasteArea = document.getElementById('sms-input');
+
+if (processSmsBtn && smsPasteArea) {
+  processSmsBtn.onclick = async () => {
+    const text = smsPasteArea.value.trim();
+    if (!text) {
+      alert('Please paste an SMS first');
+      return;
+    }
+
+    processSmsBtn.textContent = '✨ Parsing SMS...';
+    processSmsBtn.disabled = true;
+
+    try {
+      const result = await parseSMS(text);
+
+      if (result && result.success) {
+
+        // --- AUTO ADD TO DATABASE ---
+        const id = crypto.randomUUID();
+        const expenseData = {
+          id,
+          desc: result.description || 'Magic Paste Entry',
+          amount: parseFloat(result.amount) || 0,
+          type: result.type || 'expense',
+          dateISO: result.date || todayStr(),
+          category: result.category || 'Miscellaneous',
+          subCategory: result.subCategory || 'Bank Sync',
+          mode: 'Bank Account',
+          timestamp: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}Z`; })()
+        };
+
+        await DBService.saveData(currentUser?.uid, 'finances', id, expenseData);
+
+        // Gamification XP
+        try {
+          const { GamificationService } = await import('./js/gamification-service.js');
+          await GamificationService.awardPoints(10);
+          updateHeaderLevel();
+        } catch (err) {
+          console.warn("Gamification points not awarded:", err);
+        }
+
+        // Populate form fields (so they can see what was added)
+        if (descInput) descInput.value = result.description || '';
+        if (amountInput) amountInput.value = result.amount || 0;
+
+        const dateInput = document.getElementById('expense-date');
+        if (dateInput) dateInput.value = result.date || todayStr();
+
+        // Handle Type (Expense/Income)
+        if (result.type === 'income') {
+          if (toggleIncome) toggleIncome.click();
+        } else {
+          if (toggleExpense) toggleExpense.click();
+        }
+
+        // Handle Category & Subcategory
+        if (categorySelect && result.category) {
+          const catOptions = Array.from(categorySelect.options);
+          const foundCat = catOptions.find(o => o.value.toLowerCase() === result.category.toLowerCase() || result.category.toLowerCase().includes(o.value.toLowerCase()));
+
+          if (foundCat) {
+            categorySelect.value = foundCat.value;
+            categorySelect.dispatchEvent(new Event('change')); // Triggers sub-category filter
+
+            // Now try to set sub-category
+            if (subCategorySelect && result.subCategory) {
+              const subOptions = Array.from(subCategorySelect.options);
+              const foundSub = subOptions.find(o => o.value.toLowerCase() === result.subCategory.toLowerCase() || result.subCategory.toLowerCase().includes(o.value.toLowerCase()));
+              if (foundSub) {
+                subCategorySelect.value = foundSub.value;
+              }
+            }
+          }
+        }
+
+        // Visual feedback
+        processSmsBtn.textContent = '✅ Added to Database!';
+        processSmsBtn.style.background = 'var(--success)';
+        processSmsBtn.style.color = 'white';
+
+        // Clear input area
+        smsPasteArea.value = '';
+
+        setTimeout(() => {
+          processSmsBtn.textContent = 'Extract Details';
+          processSmsBtn.style.background = '';
+          processSmsBtn.style.color = '';
+        }, 3000);
+
+      } else {
+        alert('Could not parse the SMS definitively. Please check the format or fill manually.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error connecting to parser.');
+    } finally {
+      processSmsBtn.disabled = false;
+      if (processSmsBtn.textContent.includes('Parsing')) {
+        processSmsBtn.textContent = 'Extract Details';
+      }
+    }
+  };
+}
+
+
+
 // Auth Action Listeners
 if (loginBtn) loginBtn.onclick = () => AuthService.login();
-if (logoutBtn) logoutBtn.onclick = () => {
-  AuthService.setLocalOnly(false);
-  AuthService.logout().then(() => location.reload());
-};
+
+async function updateHeaderLevel() {
+  try {
+    const { GamificationService } = await import('./js/gamification-service.js');
+    const stats = await GamificationService.getStats();
+    const badge = document.getElementById('header-level-badge');
+    if (badge) {
+      badge.textContent = `LVL ${stats.level || 0}`;
+      badge.style.display = 'inline-block';
+    }
+  } catch (err) {
+    console.warn("Failed to update header level:", err);
+  }
+}

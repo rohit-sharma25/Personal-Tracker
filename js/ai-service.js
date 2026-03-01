@@ -374,4 +374,48 @@ export class AIService {
             return null;
         }
     }
+
+    /**
+     * AI-Powered SMS Parsing Fallback
+     */
+    static async parseSMSWithAI(text) {
+        if (!this.majesticKey) return null;
+
+        const systemPrompt = `
+            You are "Expensify SMS Engine". Your job is to extract data from bank transaction SMS.
+            Extract: Amount (Number), Type (expense/income), Description (Merchant name or recipient), Category (One of: Food & Grocery, Traveling, Shopping, Bill & Subscription, Investment, Peoples, LLM Models, Miscellaneous), Date (YYYY-MM-DD).
+
+            Valid Categories:
+            - Food & Grocery (Resturants, UberEats, Supermarkets)
+            - Traveling (Cabs, Flights, Petrol, Trains)
+            - Shopping (Amazon, Retail, Clothing)
+            - Bill & Subscription (Netflix, Mobile Recharge, Electricity)
+            - Investment (Stocks, Mutual Funds, Gold)
+            - Peoples (Transfer to friends/family)
+            - LLM Models (OpenAI, Anthropic, etc.)
+            - Miscellaneous (Everything else)
+
+            Return ONLY a JSON object:
+            {"amount": 500.0, "type": "expense", "description": "Zomato", "category": "Food & Grocery", "date": "2023-12-01"}
+        `;
+
+        try {
+            const data = await this.chatWithRetry({
+                model: "llama-3.1-8b-instant", // Use faster/cheaper model for parsing
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `Parse this SMS: "${text}"` }
+                ],
+                temperature: 0.1, // Low temperature for extraction accuracy
+                response_format: { type: "json_object" }
+            });
+
+            const result = JSON.parse(data.choices[0].message.content);
+            return result;
+        } catch (error) {
+            console.error("AI SMS Parse Error:", error);
+            return null;
+        }
+    }
 }
+

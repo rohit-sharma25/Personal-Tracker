@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EXPENSIFY - Smart Expense Tracking</title>
+  <title>EXPENSIFIER - Smart Expense Tracking</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="css/animations.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -21,7 +21,7 @@
             <img src="img/logo.jpg">
           </div>
           <div class="brand-text">
-            <h1 style="color: #000000; background: none; -webkit-background-clip: unset; -webkit-text-fill-color: unset; background-clip: unset;">EXPENSIFY</h1>
+            <h1>EXPENSIFIER</h1>
             <p>Track all of expenses and transactions</p>
           </div>
         </div>
@@ -43,11 +43,17 @@
 
           <div id="user-info" class="user-section hidden">
             <div class="user-info">
-              <span id="user-name" class="user-name"></span>
-              <span id="user-email" class="user-email"></span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="user-name" class="user-name"></span>
+                <span id="header-level-badge"
+                  style="background: #FFD700; color: #000; font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 10px; display: none;">LVL
+                  0</span>
+              </div>
             </div>
-            <img id="user-photo" class="user-photo" src="" alt="Profile" />
-            <button id="logout-btn" class="btn btn-ghost">Logout</button>
+            <a href="profile.html" style="margin-right: 12px;">
+              <img id="user-photo" class="user-photo" src="" alt="Profile"
+                style="border: 2px solid var(--primary); padding: 2px;" />
+            </a>
           </div>
         </div>
       </div>
@@ -443,109 +449,166 @@
 
     // Auth handling
     AuthService.onUserChange(async (user) => {
-      currentUser = user;
-      if (user) {
-        userInfo.classList.remove('hidden');
-        loggedOutView.classList.add('hidden');
-        userName.textContent = user.displayName;
-        userEmail.textContent = user.email;
-        userPhoto.src = user.photoURL;
-        greetingName.textContent = user.displayName.split(' ')[0];
-        
-        // 🔔 Request notification permission early (before any alerts are triggered)
-        if (NotificationService.isSupported() && Notification.permission === 'default') {
-          NotificationService.requestPermission()
-            .then(permission => {
-              console.log('📢 Notification permission:', permission);
-              if (permission === 'granted') {
-                NotificationService.show('Dashboard Alerts Active', 'You\'ll receive spending and investment notifications.');
-              }
-            })
-            .catch(err => console.warn('⚠️ Notification permission request failed:', err));
-        }
-        
-        loadData(user.uid);
-      } else {
-        const isLocal = AuthService.isLocalOnly();
-        if (isLocal) {
+      try {
+        currentUser = user;
+        if (user) {
+          // if we were previously in local-only mode, disable it now that auth succeeded
+          if (AuthService.isLocalOnly()) {
+            AuthService.setLocalOnly(false);
+            console.log('🔁 Exiting local-only mode after login');
+          }
+
           userInfo.classList.remove('hidden');
           loggedOutView.classList.add('hidden');
-          userName.textContent = "Guest User";
-          userEmail.textContent = "Local Mode";
-          userPhoto.src = "https://ui-avatars.com/api/?name=Guest&background=5B6CF2&color=fff";
-          greetingName.textContent = "Guest";
-          loadData(null);
+          userName.textContent = user.displayName || "Unknown User";
+          if (userEmail) userEmail.textContent = user.email || "";
+          userPhoto.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=5B6CF2&color=fff`;
+
+          const firstName = user.displayName ? user.displayName.split(' ')[0] : (user.email ? user.email.split('@')[0] : "User");
+          greetingName.textContent = firstName;
+
+          // 🔔 Request notification permission early (before any alerts are triggered)
+          if (NotificationService.isSupported() && Notification.permission === 'default') {
+            NotificationService.requestPermission()
+              .then(permission => {
+                console.log('📢 Notification permission:', permission);
+                if (permission === 'granted') {
+                  NotificationService.show('Dashboard Alerts Active', 'You\'ll receive spending and investment notifications.');
+                }
+              })
+              .catch(err => console.warn('⚠️ Notification permission request failed:', err));
+          }
+
+          await loadData(user.uid);
+          updateHeaderLevel();
         } else {
-          loggedOutView.classList.remove('hidden');
-          userInfo.classList.add('hidden');
+          const isLocal = AuthService.isLocalOnly();
+          if (isLocal) {
+            userInfo.classList.remove('hidden');
+            loggedOutView.classList.add('hidden');
+            userName.textContent = "Guest User";
+            userEmail.textContent = "Local Mode";
+            userPhoto.src = "https://ui-avatars.com/api/?name=Guest&background=5B6CF2&color=fff";
+            greetingName.textContent = "Guest";
+            await loadData(null);
+          } else {
+            loggedOutView.classList.remove('hidden');
+            userInfo.classList.add('hidden');
+          }
         }
+      } catch (error) {
+        console.error('❌ Auth state change error:', error);
+        loggedOutView.classList.remove('hidden');
+        userInfo.classList.add('hidden');
       }
     });
 
     async function loadData(uid) {
-      // Set up real-time subscriptions for automatic updates
-      DBService.subscribe(uid, 'finances', async (data) => {
-        contextData.finances = data;
-
-        // Calculate and Save Engine State
-        if (contextData.budget) {
-          const state = FinancialEngine.calculateState(data, contextData.budget);
-          const risks = FinancialEngine.runRiskEngine(state, contextData.budget);
-          const behavior = FinancialEngine.runBehaviorModel(data);
-
-          // Save to Firebase
-          await DBService.saveData(uid, 'engineState', 'financialState', { id: 'financialState', ...state });
-          await DBService.saveData(uid, 'engineState', 'riskSignals', { id: 'riskSignals', ...risks });
-          await DBService.saveData(uid, 'engineState', 'behaviorProfile', { id: 'behaviorProfile', ...behavior });
-        }
-
+      try {
+        // Fetch initial data first
+        console.log('📥 Loading data for user:', uid || 'Local');
+        const finances = await DBService.fetchData(uid, 'finances');
+        const budgetData = await DBService.fetchData(uid, 'monthlyBudget');
+        const engineData = await DBService.fetchData(uid, 'engineState');
+        const goalsData = await DBService.fetchData(uid, 'goals');
+        
+        contextData.finances = finances;
+        contextData.budget = budgetData.find(d => d.id === 'settings')?.value || null;
+        
+        // Initial render
         renderDashboard(contextData.finances, contextData.budget);
         renderCharts(contextData.finances);
         renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
         renderSubscriptions(contextData.finances);
         processProactiveAlerts(contextData.finances, contextData.budget);
-      });
-
-      DBService.subscribe(uid, 'monthlyBudget', async (data) => {
-        const settings = data.find(d => d.id === 'settings');
-        contextData.budget = settings ? settings.value : null;
-
-        // Recalculate engine state when budget changes
-        if (contextData.budget && contextData.finances.length > 0) {
-          const state = FinancialEngine.calculateState(contextData.finances, contextData.budget);
-          const risks = FinancialEngine.runRiskEngine(state, contextData.budget);
-          const behavior = FinancialEngine.runBehaviorModel(contextData.finances);
-
-          await DBService.saveData(uid, 'engineState', 'financialState', { id: 'financialState', ...state });
-          await DBService.saveData(uid, 'engineState', 'riskSignals', { id: 'riskSignals', ...risks });
-          await DBService.saveData(uid, 'engineState', 'behaviorProfile', { id: 'behaviorProfile', ...behavior });
-        }
-
-        renderDashboard(contextData.finances, contextData.budget);
-      });
-
-      // GEN-3 Real-time Engine Updates
-      DBService.subscribe(uid, 'engineState', (data) => {
-        const state = data.find(d => d.id === 'financialState');
-        const risks = data.find(d => d.id === 'riskSignals');
-        const behavior = data.find(d => d.id === 'behaviorProfile');
-
-        if (state) updateBurnRateUI(state);
-        if (risks) updateHealthUI(risks);
-        if (state && risks && behavior) {
-          updateAISmartDashboard(state, risks, behavior);
-          contextData.engineState = { state, risks, behavior };
-          // Note: removed health card elements from HTML, but logic kept for AI context
-        }
-      });
-
-      DBService.subscribe(uid, 'goals', (data) => {
-        const savedGoal = data.find(g => g.id === 'userGoal');
+        
+        const savedGoal = goalsData.find(g => g.id === 'userGoal');
         updateGoalDisplay(savedGoal || null);
-      });
 
-      // Start AI Insight Analysis
-      lastAiUpdate = 0; // Trigger immediately
+        console.log('✅ Initial data loaded:', { finances: finances.length, budget: !!contextData.budget });
+
+        // Set up real-time subscriptions for automatic updates
+        DBService.subscribe(uid, 'finances', async (data) => {
+          try {
+            contextData.finances = data;
+
+            // Calculate and Save Engine State
+            if (contextData.budget) {
+              const state = FinancialEngine.calculateState(data, contextData.budget);
+              const risks = FinancialEngine.runRiskEngine(state, contextData.budget);
+              const behavior = FinancialEngine.runBehaviorModel(data);
+
+              // Save to Firebase
+              await DBService.saveData(uid, 'engineState', 'financialState', { id: 'financialState', ...state });
+              await DBService.saveData(uid, 'engineState', 'riskSignals', { id: 'riskSignals', ...risks });
+              await DBService.saveData(uid, 'engineState', 'behaviorProfile', { id: 'behaviorProfile', ...behavior });
+            }
+
+            renderDashboard(contextData.finances, contextData.budget);
+            renderCharts(contextData.finances);
+            renderRecentExpenses(contextData.finances, currentFilter, currentChartType);
+            renderSubscriptions(contextData.finances);
+            processProactiveAlerts(contextData.finances, contextData.budget);
+          } catch (err) {
+            console.error('❌ Error processing finances subscription:', err);
+          }
+        });
+
+        DBService.subscribe(uid, 'monthlyBudget', async (data) => {
+          try {
+            const settings = data.find(d => d.id === 'settings');
+            contextData.budget = settings ? settings.value : null;
+
+            // Recalculate engine state when budget changes
+            if (contextData.budget && contextData.finances.length > 0) {
+              const state = FinancialEngine.calculateState(contextData.finances, contextData.budget);
+              const risks = FinancialEngine.runRiskEngine(state, contextData.budget);
+              const behavior = FinancialEngine.runBehaviorModel(contextData.finances);
+
+              await DBService.saveData(uid, 'engineState', 'financialState', { id: 'financialState', ...state });
+              await DBService.saveData(uid, 'engineState', 'riskSignals', { id: 'riskSignals', ...risks });
+              await DBService.saveData(uid, 'engineState', 'behaviorProfile', { id: 'behaviorProfile', ...behavior });
+            }
+
+            renderDashboard(contextData.finances, contextData.budget);
+          } catch (err) {
+            console.error('❌ Error processing budget subscription:', err);
+          }
+        });
+
+        // GEN-3 Real-time Engine Updates
+        DBService.subscribe(uid, 'engineState', (data) => {
+          try {
+            const state = data.find(d => d.id === 'financialState');
+            const risks = data.find(d => d.id === 'riskSignals');
+            const behavior = data.find(d => d.id === 'behaviorProfile');
+
+            if (state) updateBurnRateUI(state);
+            if (risks) updateHealthUI(risks);
+            if (state && risks && behavior) {
+              updateAISmartDashboard(state, risks, behavior);
+              contextData.engineState = { state, risks, behavior };
+            }
+          } catch (err) {
+            console.error('❌ Error processing engine state subscription:', err);
+          }
+        });
+
+        DBService.subscribe(uid, 'goals', (data) => {
+          try {
+            const savedGoal = data.find(g => g.id === 'userGoal');
+            updateGoalDisplay(savedGoal || null);
+          } catch (err) {
+            console.error('❌ Error processing goals subscription:', err);
+          }
+        });
+
+        // Start AI Insight Analysis
+        lastAiUpdate = 0; // Trigger immediately
+      } catch (error) {
+        console.error('❌ Fatal error in loadData:', error);
+        alert('⚠️ Failed to load data. Please check console and try refreshing.');
+      }
     }
 
 
@@ -1089,9 +1152,26 @@
       });
     });
 
-    if (loginBtn) loginBtn.addEventListener('click', () => AuthService.login());
+    if (loginBtn) loginBtn.addEventListener('click', () => {
+      // ensure offline flag is cleared before attempting login
+      AuthService.setLocalOnly(false);
+      AuthService.login();
+    });
     if (skipBtn) skipBtn.addEventListener('click', () => { AuthService.setLocalOnly(true); location.reload(); });
-    if (logoutBtn) logoutBtn.addEventListener('click', () => { AuthService.setLocalOnly(false); AuthService.logout(); location.reload(); });
+
+    async function updateHeaderLevel() {
+      try {
+        const { GamificationService } = await import('./js/gamification-service.js');
+        const stats = await GamificationService.getStats();
+        const badge = document.getElementById('header-level-badge');
+        if (badge) {
+          badge.textContent = `LVL ${stats.level || 0}`;
+          badge.style.display = 'inline-block';
+        }
+      } catch (err) {
+        console.warn("Failed to update header level:", err);
+      }
+    }
   </script>
 </body>
 

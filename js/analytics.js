@@ -9,7 +9,13 @@
  */
 export function calculateFinanceStats(finances, monthlyBudget) {
     const today = new Date();
-    const currentMonth = today.toISOString().slice(0, 7);
+    // Use Local Time for string comparisons
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+
+    const currentMonth = `${year}-${month}`;
+    const todayStr = `${year}-${month}-${day}`;
 
     const stats = {
         totalExpenses: 0,
@@ -24,7 +30,6 @@ export function calculateFinanceStats(finances, monthlyBudget) {
         topExpense: null
     };
 
-    const todayStr = today.toISOString().slice(0, 10);
     const monthExpenses = [];
 
     finances.forEach(f => {
@@ -90,7 +95,7 @@ export function getSpendingTrend(finances, days = 7) {
     for (let i = days - 1; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(today.getDate() - i);
-        const dateStr = date.toISOString().slice(0, 10);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
         const dayExpenses = finances
             .filter(f => f.type === 'expense' && f.dateISO === dateStr)
@@ -161,7 +166,7 @@ export function calculateBudgetTrajectory(finances, monthlyBudget) {
     const lastDayToProcess = today.getDate();
 
     const dailySpending = new Array(daysInMonth).fill(0);
-    const monthPrefix = today.toISOString().slice(0, 7);
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
 
     finances.filter(f => f.type === 'expense' && f.dateISO.startsWith(monthPrefix)).forEach(f => {
         const day = new Date(f.dateISO).getDate();
